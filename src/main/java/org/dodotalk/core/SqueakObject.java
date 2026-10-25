@@ -1,0 +1,474 @@
+/*
+SqueakObject.java
+Copyright (c) 2008  Daniel H. H. Ingalls, Sun Microsystems, Inc.  All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+
+package org.dodotalk.core;
+
+import java.util.Arrays;
+import java.util.Hashtable;
+
+/**
+ * @author Daniel Ingalls
+ * <p>
+ * Squeak objects are modelled by Java objects with separate binary and pointer data.
+ * Later this could be optimized for objects that have only one or the other, but for
+ * now it is simple, and handles the inhomogeneous case of CompiledMethods nicely.
+ * <p>
+ * Weak fields are not currently supported.  The plan for doing this would be
+ * to make those objects a subclass, and put pointers in a WeakField.  We would
+ * need to replace all patterns of obj.pointers with an access function.
+ * Then we would associate a finalization routine with those pointers.
+ */
+public class SqueakObject {
+    //Later make variants for common formats
+
+    short hash;        //12-bit Squeak hash
+    short format;      // 4-bit Squeak format
+    Object sqClass;  //squeak class
+    Object[] pointers; //pointer fields; fixed as well as indexable
+    Object bits;       //indexable binary data (bytes or ints)
+    int imageGeneration; //the image load this object belongs to, 0 if none
+
+    public SqueakObject(Integer cls, int fmt, int hsh, int[] imageData) {
+        //Initial creation from SqueakImage, with unmapped data
+        sqClass = cls;
+        format = (short) fmt;
+        hash = (short) hsh;
+        bits = imageData;
+    }
+
+    public SqueakObject(SqueakImage img) {
+        //Creation of stub object (no pointers or bits)
+        hash = img.registerObject(this);
+    }
+
+    public SqueakObject(SqueakImage img, SqueakObject cls, int indexableSize, SqueakObject filler) {
+        //Creation of objects from Squeak
+        this(img);
+        sqClass = cls;
+        //int instSpec = SqueakVM.intFromSmall(cls.getPointerI(Squeak.Class_format));
+        int instSpec = cls.getPointerI(Squeak.Class_format);
+        int instSize = ((instSpec >> 1) & 0x3F) + ((instSpec >> 10) & 0xC0) - 1; //0-255
+        format = ((short) ((instSpec >> 7) & 0xF)); //This is the 0-15 code
+
+        if (format < 8) {
+            if (format != 6) {
+                pointers = new Object[instSize + indexableSize];
+                Arrays.fill(pointers, filler);
+            } else {
+                if (indexableSize >= 0)
+                    bits = new int[indexableSize];
+            }
+        } else {
+            bits = new byte[indexableSize];  //Methods require further init of pointers
+        }
+    }
+
+//      Definition of Squeak's format code...
+//
+//      Pointers only...
+//        0      no fields
+//        1      fixed fields only (all containing pointers)
+//        2      indexable fields only (all containing pointers)
+//        3      both fixed and indexable fields (all containing pointers)
+//        4      both fixed and indexable weak fields (all containing pointers).
+//        5      unused
+//      Bits only...
+//        6      indexable word fields only (no pointers)
+//        7      unused
+//        8-11   indexable byte fields only (no pointers) (low 2 bits are low 2 bits of size)
+//      Pointer and bits (CompiledMethods only)...
+//       12-15   compiled methods:
+//               # of literal oops specified in method header,
+//               followed by indexable bytes (same interpretation of low 2 bits as above)
+
+
+    //General access
+    public SqueakObject getSqClass() {
+        return (SqueakObject) sqClass;
+    }
+
+    public Object getPointer(int zeroBasedIndex) {
+        return pointers[zeroBasedIndex];
+    }
+
+    public SqueakObject getPointerNI(int zeroBasedIndex) {
+        //Returns only SqueakObjects, not Integers
+        return (SqueakObject) pointers[zeroBasedIndex];
+    }
+
+    public Integer getPointerI(int zeroBasedIndex) {
+        //Returns only SmallIntegers
+        return (Integer) pointers[zeroBasedIndex];
+    }
+
+    public void setPointer(int zeroBasedIndex, Object aPointer) {
+        pointers[zeroBasedIndex] = aPointer;
+    }
+
+    public int pointersSize() {
+        return pointers == null ? 0 : pointers.length;
+    }
+
+    public int bitsSize() {
+        if (bits == null) {
+            return 0;
+        }
+        if (bits instanceof byte[]) {
+            return ((byte[]) bits).length;
+        }
+        if (bits instanceof Double) {
+            return 2;
+        }
+        return ((int[]) bits).length;
+    }
+
+    //same as class.classInstSize, but faster from format
+    public int instSize() {
+        if (format > 4 || format == 2) { //indexable fields only
+            return 0;
+        }
+        if (format < 2) { //indexable fields only
+            return pointers.length;
+        }
+        return ((SqueakObject) sqClass).classInstSize();  //0-255
+    }
+
+    public int classInstSize() {
+        int instSpec = this.getPointerI(Squeak.Class_format);
+        return ((instSpec >> 1) & 0x3F) + ((instSpec >> 10) & 0xC0) - 1; //0-255
+    }
+
+    public SqueakObject classGetName() {
+        return this.getPointerNI(Squeak.Class_name);
+    }
+
+    SqueakObject cloneIn(SqueakImage img) {
+        //Need to get new hash, OT entry...
+        SqueakObject clone = new SqueakObject(img);
+        clone.copyStateFrom(this);
+        return clone;
+    }
+
+    private void copyStateFrom(SqueakObject other) {
+        sqClass = other.sqClass;
+        format = other.format;
+        pointers = (Object[]) other.pointers.clone();
+        Object otherBits = other.bits;
+        if (otherBits == null) {
+            return;
+        }
+        if (otherBits instanceof byte[]) {
+            bits = ((byte[]) other.bits).clone();
+        } else if (otherBits instanceof int[]) {
+            bits = ((int[]) other.bits).clone();
+        }
+    }
+
+    // isn't this slow?'
+    double getFloatBits() {
+        return (Double) bits;
+    }
+
+    void setFloatBits(double value) {
+        bits = value;
+    }
+
+    //CompiledMethods
+    public int methodHeader() {
+        return (Integer) getPointer(0);
+    }
+
+    public int methodNumLits() {
+        return (methodHeader() >> 9) & 0xFF;
+    }
+
+    public int methodNumArgs() {
+        return (methodHeader() >> 24) & 0xF;
+    }
+
+    public int methodPrimitiveIndex() {
+        int primBits = (methodHeader()) & 0x300001FF;
+        if (primBits > 0x1FF) {
+            return (primBits & 0x1FF) + (primBits >> 19);
+        } else {
+            return primBits;
+        }
+    }
+
+    //assn found in last literal
+    public SqueakObject methodClassForSuper() {
+        SqueakObject assn = getPointerNI(methodNumLits());
+        return assn.getPointerNI(Squeak.Assn_value);
+    }
+
+    public boolean methodNeedsLargeFrame() {
+        return (methodHeader() & 0x20000) > 0;
+    }
+
+    public void methodAddPointers(Object[] headerAndLits) {
+        pointers = headerAndLits;
+    }
+
+    public int methodTempCount() {
+        return (methodHeader() >> 18) & 63;
+    }
+
+    public Object methodGetLiteral(int zeroBasedIndex) {
+        return getPointer(1 + zeroBasedIndex);  // step over header
+    }
+
+
+    public SqueakObject methodGetSelector(int zeroBasedIndex) {
+        return getPointerNI(1 + zeroBasedIndex); // step over header
+    }
+
+    public void methodSetLiteral(int zeroBasedIndex, Object rawValue) {
+        setPointer(1 + zeroBasedIndex, rawValue); // step over header
+    }
+
+    //Methods below here are only used for reading the Squeak image format
+    public void install(Hashtable<Object, Object> oopMap, Integer[] ccArray, SqueakObject floatClass)
+            throws SqueakImageFormatException {
+        //Install this object by decoding format, and rectifying pointers
+        if (sqClass instanceof SqueakObject) {
+            // The object has already been installed. This is a safety net for
+            // the case that an object is installed twice, which can happen when
+            // more than one image is loaded into the same VM.
+            return;
+        }
+        if (!(sqClass instanceof Integer)) {
+            throw new SqueakImageFormatException(
+                    "object class reference is not an image oop: " + sqClass);
+        }
+        int ccInt = (Integer) sqClass;
+        if ((ccInt > 0) && (ccInt < 32)) {
+            if (ccArray == null || ccArray.length < ccInt) {
+                throw new SqueakImageFormatException(
+                        "the compact class array does not contain the class index " + ccInt);
+            }
+            Integer compactOop = ccArray[ccInt - 1];
+            if (compactOop == null) {
+                throw new SqueakImageFormatException(
+                        "the compact class index " + ccInt + " does not refer to an oop");
+            }
+            sqClass = oopMap.get(compactOop);
+        } else {
+            sqClass = oopMap.get(sqClass);
+        }
+        if (sqClass == null) {
+            throw new SqueakImageFormatException("the class of the object (reference "
+                    + ccInt + ") does not refer to any object in the image");
+        }
+        if (!(bits instanceof int[])) {
+            throw new SqueakImageFormatException(
+                    "object data is not an image word array: " + bits);
+        }
+        int nWords = ((int[]) bits).length;
+        if (format < 5) {
+            //Formats 0...4 -- Pointer fields
+            pointers = decodePointers(nWords, ((int[]) bits), oopMap);
+            bits = null;
+        } else {
+            if (format >= 12) {
+                //Formats 12-15 -- CompiledMethods both pointers and bits
+                if (nWords < 1) {
+                    throw new SqueakImageFormatException(
+                            "compiled method has no header word (format " + format + ")");
+                }
+                int methodHeader = ((int[]) bits)[0];
+                // The method header word is stored shifted left by one bit, so the
+                // literal count occupies bits 10..17 of the raw image word.
+                int numLits = (methodHeader >> 10) & 255;
+                if (numLits + 1 > nWords) {
+                    throw new SqueakImageFormatException("compiled method declares "
+                            + numLits + " literals but only " + nWords + " words are present");
+                }
+                pointers = decodePointers(numLits + 1, ((int[]) bits), oopMap); //header+lits
+                bits = decodeBytes(nWords - (numLits + 1), ((int[]) bits), numLits + 1, format & 3);
+            } else if (format >= 8) {
+                //Formats 8..11 -- ByteArrays (and Strings)
+                bits = decodeBytes(nWords, ((int[]) bits), 0, format & 3);
+            } else if (format == 6 && sqClass == floatClass) {
+                //Format 6 word objects are already OK (except Floats...)
+                //Floats need two ints to be converted to double
+                if (nWords < 2) {
+                    throw new SqueakImageFormatException(
+                            "float object needs 2 words, but only " + nWords + " are present");
+                }
+                /*
+                Caution !
+                Some integer value are negative, because int,long are signed value in Java,
+                so cast a int to long directly will cause error when calling Double.longBitsToDouble.
+                When dealing with lower bits, we must do << 32 then >>> 32,
+                using >>> (The unsigned right shift operator) to ignore negative flag.
+                Example :
+                1. lower bits: (int) bits[1] = 0xFFC0 0000
+                2. cast to long: 0xFFFF FFFF FFC0 0000 (a negative number)
+                3. << 32: 0xFFC0 0000 0000 0000
+                4. >>> 32: 0x0000 0000 FFC0 0000  (if >> 32: 0xFFFF FFFF FFC0 0000, still negative)
+                 */
+                int a1 = ((int[]) bits)[0];
+                int a2 = ((int[]) bits)[1];
+                long b1 = ((long) a1) << 32;
+                long b2 = ((long) a2 << 32) >>> 32; // important !!! MUST use unsigned right shift operator
+                long longBits = b1 | b2;
+
+                bits = Double.longBitsToDouble(longBits);
+            }
+            //Formats 5 and 7 are unused, and format 6 objects that are not Floats
+            //keep their raw word data as they are.
+        }
+    }
+
+    private Object[] decodePointers(int nWords, int[] theBits, Hashtable<Object, Object> oopMap) {
+        //Convert small ints and look up object pointers in oopMap
+        Object[] ptrs = new Object[nWords];
+        for (int i = 0; i < nWords; i++) {
+            int oldOop = theBits[i];
+            if ((oldOop & 1) == 1) {
+                ptrs[i] = InterpreterHelper.smallFromInt(oldOop >> 1);
+            } else {
+                ptrs[i] = oopMap.get(oldOop);
+            }
+        }
+        return ptrs;
+    }
+
+    private byte[] decodeBytes(int nWords, int[] theBits, int wordOffset, int fmtLoBits)
+            throws SqueakImageFormatException {
+        //Adjust size for low bits and extract bytes from ints
+        int nBytes = (nWords * 4) - fmtLoBits;
+        if (nBytes < 0) {
+            throw new SqueakImageFormatException(
+                    "invalid byte section size: " + nWords + " words, " + fmtLoBits + " padding bytes");
+        }
+        if (wordOffset + (nBytes + 3) / 4 > theBits.length) {
+            throw new SqueakImageFormatException("byte section of " + nBytes
+                    + " bytes does not fit into the " + theBits.length + " available words");
+        }
+        byte[] newBits = new byte[nBytes];
+        int wordIx = wordOffset;
+        int fourBytes = 0;
+        for (int i = 0; i < nBytes; i++) {
+            if ((i & 3) == 0) {
+                fourBytes = theBits[wordIx++];
+            }
+            int pickByte = (fourBytes >> (8 * (3 - (i & 3)))) & 255;
+            if (pickByte >= 128) {
+                pickByte = pickByte - 256;
+            }
+            newBits[i] = (byte) pickByte;
+        }
+        return newBits;
+    }
+
+    public int oldOopAt(int zeroBasedOffset) {
+        return ((int[]) bits)[zeroBasedOffset];
+    }
+
+    public String asString() {
+        // debugging only: if body consists of bytes, make a Java String from them
+        if (bits != null && bits instanceof byte[]) {
+            if (pointers != null) {
+                return "a CompiledMethod";
+            } else {
+                return new String((byte[]) bits);
+            }
+        } else {
+            if (this.sqClass instanceof SqueakObject) {
+                SqueakObject itsClass = this.getSqClass();
+                if (itsClass.pointersSize() >= 9) {
+                    return "a " + safeClassName(itsClass);
+                } else {
+                    return "Class " + safeClassName(this);
+                }
+            } else {
+                return " find problem with this obj";
+            }
+        }
+    }
+
+    /**
+     * The name of a class, or a placeholder if the class object is too broken to
+     * have one. Used by the debugging output, which must never fail.
+     */
+    private static String safeClassName(SqueakObject aClass) {
+        if (aClass.pointersSize() > Squeak.Class_name) {
+            SqueakObject name = aClass.getPointerNI(Squeak.Class_name);
+            if (name != null) {
+                return name.asString();
+            }
+        }
+        return "<unnamed class>";
+    }
+
+    public String toString() {
+        return this.asString();
+    }
+
+    /**
+     * FIXME: what is the right way to achieve this?
+     */
+    void setByte(int zeroBasedIndex, byte value) {
+        byte[] bytes = (byte[]) bits;
+
+        bytes[zeroBasedIndex] = value;
+    }
+
+    /**
+     * FIXME: what is the right way to achieve this?
+     */
+    byte getByte(int zeroBasedIndex) {
+        byte[] bytes = (byte[]) bits;
+
+        return bytes[zeroBasedIndex];
+    }
+
+    public short getHash() {
+        return hash;
+    }
+
+    public short getFormat() {
+        return format;
+    }
+
+    public Object[] getPointers() {
+        return pointers;
+    }
+
+    public Object getBits() {
+        return bits;
+    }
+
+    // ------ static method ------
+
+    public static SqueakObject createSTString(String jString) {
+        SqueakObject obj = new SqueakObject(
+                SqueakVM.image,
+                (SqueakObject) SqueakVM.specialObjects[Squeak.splOb_ClassString],
+                jString.length(),
+                SqueakVM.nilObj);
+        obj.bits = jString.getBytes();
+        return obj;
+    }
+}
