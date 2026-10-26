@@ -52,13 +52,20 @@ boundary.
 [doc/runtime-diagnostics.md](doc/runtime-diagnostics.md).
 
 Image-dependent integration tests are skipped when no image is supplied. To run
-them locally:
+them locally, either set the environment variables:
 
 ```bash
 JSQUEAK_TEST_MINI_IMAGE=/path/to/mini.image.gz \
 JSQUEAK_TEST_FULL_IMAGE=/path/to/squeak22.image.gz \
 ./gradlew clean test
 ```
+
+or place the images outside the repository at `../temp/test-images/` using the
+fixed names `mini.image.gz` and `squeak22.image.gz` (the official
+`Squeak2.2.image.gz` spelling is also accepted). The resolver checks this path
+automatically. Keep images out of Git; see
+[doc/test-images.md](doc/test-images.md) and
+[ADR-0002](doc/adr/ADR-0002-test-image-storage-and-discovery.md).
 
 On a headless machine, pass `-image`; without an image and without a display the
 launcher prints usage and exits. The test suite runs headless.

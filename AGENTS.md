@@ -39,11 +39,19 @@ The Java package is `org.dodotalk`.
   - `uilts/` — utility classes (SqueakLogger, ObjectUtils, ScreenUtils, RuntimeStats)
 - `src/main/resources/` — application resources only; no Squeak image is shipped
 - `src/test/java/org/dodotalk/core/` — JUnit 5 tests for image loading, object parsing, arithmetic helpers, VM contexts, interrupt/diagnostics
-- `src/test/java/org/dodotalk/TestImages.java` — locates user-supplied test images from environment variables
+- `src/test/java/org/dodotalk/TestImages.java` — locates user-supplied test images from environment variables or the local `../temp/test-images/` directory
+- `src/test/java/org/dodotalk/TestImagesTest.java` — regression tests for image path discovery
 - `build.gradle.kts`, `settings.gradle.kts` — Gradle Kotlin DSL build
 - `gradle/wrapper/` — Gradle 9.8.2 Wrapper (`gradle-wrapper.jar` must be committed)
 - `gradlew`, `gradlew.bat` — Wrapper launchers
-- `doc/` — design notes, roadmap/plan and reference tables: bytecode/primitive/BitBlt tables, rendering review, input reliability, runtime diagnostics (`runtime-diagnostics.md`), freeze analysis, image format (`image-format.md`), `next-iteration-priorities.md`, `plan.md`, `report_20260913.md`
+- `doc/` — documentation and reference material:
+  - `doc/README.md` — documentation index and current issue/design/ADR status
+  - `doc/issues/`, `doc/design/`, `doc/adr/`, `doc/templates/` — issue → design → ADR workflow
+  - `doc/test-images.md` — local test-image layout and auto-discovery
+  - `doc/next-iteration-priorities.md`, `doc/plan.md` — roadmap and phased plan
+  - `doc/image-format.md`, `doc/rendering-review.md`, `doc/runtime-diagnostics.md`, `doc/input-reliability.md` — reference notes
+  - `doc/primitive-table.md`, `doc/bytecode-table.md`, `doc/bb-operation-table.md` — reference tables
+  - `doc/report_20260913.md`, `doc/potato-comparison-2026-10-25.md`, `doc/freeze-analysis-2026-10-24.md` — historical/background reports
 - Root keeps `README.md`, `AGENTS.md`, `AUTHORS`, and `THIRD_PARTY_NOTICES.md`; put other Markdown under `doc/`.
 - `build/` — generated Gradle output (ignored; do not edit)
 
@@ -66,12 +74,21 @@ The Java package is `org.dodotalk`.
 - `./gradlew run -PsqueakPrimitiveFailures=false` suppresses failed-primitive debug messages.
 - Log messages are sanitized: control characters (including ESC) are escaped and long messages are truncated, so binary image data cannot corrupt the terminal.
 
+## Documentation Workflow
+
+- Documentation is organized as **Issue → Design → ADR**; see `doc/README.md` and `ADR-0001`.
+- Every code-changing requirement gets an `ISSUE-####-*.md` under `doc/issues/`.
+- After the issue is accepted, create the same-numbered `DESIGN-####-*.md` under `doc/design/`; code changes start only after the design is accepted.
+- Record cross-cutting, hard-to-reverse decisions under `doc/adr/`; accepted ADRs are immutable and are superseded by a new ADR rather than edited.
+- Templates live in `doc/templates/`.
+- Before committing, run `./gradlew checkNoSqueakImages` to ensure no Squeak image or support file is tracked.
+
 ## Important Quirks
 
 - **Image loading**: `SqueakImage.loaded()` reads gzip-compressed binary image files. The image is supplied by the user through the launcher or `-image`; no image is bundled. Only `*.image.gz` is accepted in this release.
 - **Bytecodes**: 0-255 mapped to executors in `SqueakVM.bytecodeTable[256]`. New bytecodes require updating both the table and `doc/bytecode-table.md`.
 - **Primitives**: 250+ primitives indexed by number (see `doc/primitive-table.md`). Primitive failures trigger `doesNotUnderstand:`.
-- **Tests**: JUnit 5 tests live under `src/test/java`; run them with `./gradlew test`. Gradle sets `java.awt.headless=true` for tests. Image-dependent integration tests are skipped unless `JSQUEAK_TEST_MINI_IMAGE` and/or `JSQUEAK_TEST_FULL_IMAGE` point to user-supplied `.image.gz` files. Do not add Squeak images to `src/test/resources`.
+- **Tests**: JUnit 5 tests live under `src/test/java`; run them with `./gradlew test`. Gradle sets `java.awt.headless=true` for tests. Image-dependent integration tests are skipped unless `JSQUEAK_TEST_MINI_IMAGE` and/or `JSQUEAK_TEST_FULL_IMAGE` point to user-supplied `.image.gz` files, or the files are found in `../temp/test-images/` (outside the repository). Do not add Squeak images to `src/test/resources`; see `doc/test-images.md`.
 - **Single-threaded VM**: `SqueakVM` uses static global state (`SqueakVM.INSTANCE`). Not thread-safe.
 - **SmallInts**: 31-bit integers (`minSmallInt = -0x40000000`, `maxSmallInt = 0x3FFFFFFF`). Integer overflow uses the `nonSmallInt` sentinel.
 - **Input reliability**: `InputEventLatch` provides monotonic wakeups; `MouseStatus` queues press/release transitions so short clicks are not lost. Manually verified in a real window on 2026-10-24. See `doc/input-reliability.md`.
@@ -85,16 +102,16 @@ The Java package is `org.dodotalk`.
 
 - **CI intentionally deferred**: there is no `.github/workflows`. CI is important but low priority while the project is maintained by a single developer; the current gate is local `./gradlew clean test` plus manual smoke testing. Revisit when collaboration or release cadence requires it. See `doc/next-iteration-priorities.md`.
 - **Snapshot format validation**: atomic saving and reload are covered by tests, but saved images have not been cross-validated against the original Squeak 2.2 VM.
-- **Partial primitive coverage**: many advanced integer, stream, sound and network primitives still fail. `-PsqueakStats=true` reports a failure histogram classified as unimplemented/failed/exception/intentional; use it before choosing the next primitive. 65–67, 127, 140, 231 and 235 are now implemented; 103 (`scanCharacters`) is the largest remaining real hotspot and 96 (`copyBits`) has a few reproducible failures. Primitive 172 (`primSoundStop`) is intentionally a tracked no-op stub (`NO_OP_STUB_PRIMITIVES`) so snapshot shutdown can complete; see `SqueakPrimitiveHandler`.
+- **Partial primitive coverage**: many advanced integer, stream, sound and network primitives still fail. `-PsqueakStats=true` reports a failure histogram classified as unimplemented/failed/exception/intentional; use it before choosing the next primitive. 65–67, 103 (`scanCharacters`), 127, 140, 231 and 235 are now implemented; 96 (`copyBits`) has a few reproducible failures, and 103's remaining startup failures come from compressed source forms (the same lazy-decompression path as 96). Primitive 172 (`primSoundStop`) is intentionally a tracked no-op stub (`NO_OP_STUB_PRIMITIVES`) so snapshot shutdown can complete; see `SqueakPrimitiveHandler`.
 - **Global VM state**: `SqueakVM.INSTANCE` and `SqueakVM.objectMemory` are static, so multiple VM instances are not supported.
 - **Display**: 1/2/4/8/16/32-bit depths are supported and Swing access is confined to the EDT. Dirty rectangles are merged and only dirty areas repaint; `deferUpdates`, `forceDisplayUpdate` (231) and `showDisplayRect` (127) are implemented. User window resizing is temporarily disabled; display-size changes must come from the image (`beDisplay`/restore display). Primitive 233 full screen now fails explicitly instead of reporting fake success. See `doc/rendering-review.md`.
-- **Rendering priorities**: full-screen/window-resize/custom-cursor strategy, plus 103 `scanCharacters` and the occasional 96 `copyBits` failures.
-- **Latest roadmap**: `doc/next-iteration-priorities.md` (Sprint 1 interrupt/diagnostics and Sprint 2 display/stream/GC are complete; next is 103 `scanCharacters`, 96 `copyBits`, full-screen/resize/cursor strategy and snapshot cross-validation; CI is important but low priority).
+- **Rendering priorities**: full-screen/window-resize/custom-cursor strategy, plus the occasional 96 `copyBits` failures.
+- **Latest roadmap**: `doc/next-iteration-priorities.md` (Sprint 1 interrupt/diagnostics, Sprint 2 display/stream/GC, and Primitive 103 `scanCharacters` are complete and smoke-tested; next is 96 `copyBits`, full-screen/resize/cursor strategy and snapshot cross-validation; CI is important but low priority).
 - **Legacy `out/` is unused**: Gradle builds into `build/`; do not add files under `out/`.
 
 ## What NOT to Do
 
-- Do not add a Squeak image, `SqueakV2.sources`, a Squeak `.changes` file, or a Squeak screenshot to this repository. They are not MIT-licensed; see `THIRD_PARTY_NOTICES.md`.
+- Do not add a Squeak image, `SqueakV2.sources`, a Squeak `.changes` file, or a Squeak screenshot to this repository. They are not MIT-licensed; see `THIRD_PARTY_NOTICES.md`. For local tests, keep images outside the repository at `../temp/test-images/`; do not place them under the project directory (including `temp/`).
 - Do not make the launcher or `Main` run the VM on the Swing event dispatch thread; `Screen.open()` performs EDT work and will deadlock.
 - Do not attempt to modify image files without understanding the gzip + custom binary format in `SqueakImage.readImage()`.
 - Do not bypass Gradle to compile into `out/`; use `./gradlew`.

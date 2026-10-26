@@ -23,6 +23,17 @@ build/
 /logs/
 /images/
 
+# Squeak images and support files: local only, never commit.
+# The only auto-discovered location is the sibling directory ../temp/test-images/
+# (outside this repository). The ignored temp/ directory is for other local
+# artifacts only; do not place test images there.
+*.image
+*.image.gz
+*.image.bak
+*.image.gz.bak
+*.changes
+SqueakV2.sources
+
 # IntelliJ
 *.iml
 .idea/

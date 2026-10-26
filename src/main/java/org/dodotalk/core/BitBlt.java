@@ -132,6 +132,22 @@ public class BitBlt {
     /** Avoid flooding the log when a line ends just after the source bitmap. */
     private boolean sourceOutOfBoundsReported;
 
+    /** Human-readable reason for the most recent BitBlt/scanner failure. */
+    private String lastFailure = "";
+
+    // CharacterScanner / Primitive 103 state. The scanner receiver is a
+    // CharacterScanner (a BitBlt subclass); its lastIndex and xTable live in
+    // pointer slots 15 and 16 respectively.
+    private SqueakObject scannerObject;
+    private SqueakObject scanString;
+    private SqueakObject scanStopArray;
+    private SqueakObject scanXTable;
+    private int scanStart;
+    private int scanStop;
+    private int scanRightX;
+    private boolean scanDisplayFlag;
+    private Rectangle scanAffectedArea;
+
     final static int FN_XOR = 2;
     final static int FN_STORE_CONST = 12;
     final static int AllOnes = 0xFFFFFFFF;
@@ -160,21 +176,22 @@ public class BitBlt {
                        int argCount,
                        boolean doWarp,
                        SqueakObject displayForm) {
-        SqueakVM.INSTANCE.setSuccess(true);
+        vm.setSuccess(true);
+        lastFailure = "";
         isWarping = doWarp;
         sourceOutOfBoundsReported = false;
         Object[] bbPointers = bbObject.pointers;
         combinationRule = checkIntValue(bbPointers[3]);
         //SqueakLogger.log_D("loadBitBlt combinationRule: " + combinationRule);
 
-        if (!SqueakVM.INSTANCE.isSuccess()
+        if (!vm.isSuccess()
                 || (combinationRule < 0)
                 || (combinationRule > (_BBOpTable.length - 2))) {
-            return false;
+            return fail("invalid combinationRule " + combinationRule);
         }
 
         if (combinationRule >= 16 && combinationRule <= 17) {
-            return false;
+            return fail("combinationRule " + combinationRule + " is not supported");
         }
         destForm = bbPointers[0];
         sourceForm = bbPointers[1];
@@ -184,47 +201,50 @@ public class BitBlt {
         noHalftone = ignoreSourceOrHalftone(halftoneForm);
 
         if (!dest.loadFrom(destForm)) {
-            return false;
+            return fail("destination form cannot be loaded");
         }
         if (!loadBBDestRect(bbPointers)) {
-            return false;
+            return fail("invalid destination rectangle");
         }
-        if (!SqueakVM.INSTANCE.isSuccess()) {
-            return false;
+        if (!vm.isSuccess()) {
+            return fail("invalid destination geometry");
         }
         if (noSource) {
             sourceX = sourceY = 0;
         } else {
             if (!source.loadFrom(sourceForm)) {
-                return false;
+                return fail("source form cannot be loaded (possibly compressed bits)");
             }
             if (!loadColorMap(bbObject)) {
-                return false;
+                return fail("invalid color map");
             }
             if ((cmFlags & 8) == 0) {
                 setupColorMasks();
             }
             sourceX = checkIntOrFloatIfNil(bbPointers[8], 0);
             sourceY = checkIntOrFloatIfNil(bbPointers[9], 0);
+            if (!vm.isSuccess()) {
+                return fail("invalid source origin");
+            }
         }
         if (!loadBBHalftoneForm(halftoneForm)) {
-            return false;
+            return fail("invalid halftone form");
         }
         if (!loadBBClipRect(bbPointers)) {
-            return false;
+            return fail("invalid clip rectangle");
         }
-        if (!SqueakVM.INSTANCE.isSuccess()) {
-            return false;
+        if (!vm.isSuccess()) {
+            return fail("invalid clip geometry");
         }
         if (combinationRule == 30 || combinationRule == 31) {
             if (argCount != 1) {
-                return false; // alpha arg is required
+                return fail("alpha argument is required");
             }
             sourceAlpha = checkIntValue(vm.top());
             if (!(sourceAlpha >= 0 && sourceAlpha <= 255)) {
-                return false;
+                return fail("alpha argument out of range");
             }
-            if (SqueakVM.INSTANCE.isSuccess()) {
+            if (vm.isSuccess()) {
                 vm.pop();
             }
         }
@@ -270,7 +290,7 @@ public class BitBlt {
         if (InterpreterHelper.isSTInteger(obj)) {
             return (Integer) obj;
         }
-        SqueakVM.INSTANCE.setSuccess(false);
+        vm.setSuccess(false);
         return 0;
     }
 
@@ -284,12 +304,12 @@ public class BitBlt {
         }
         SqueakObject floatObj = (SqueakObject) intOrFloatObj;
         if (floatObj.sqClass != SqueakVM.specialObjects[Squeak.splOb_ClassFloat]) {
-            SqueakVM.INSTANCE.setSuccess(false);
+            vm.setSuccess(false);
             return 0;
         }
         floatValue = floatObj.getFloatBits();
         if (!((-2.147483648e9 <= floatValue) && (floatValue <= 2.147483647e9))) {
-            SqueakVM.INSTANCE.setSuccess(false);
+            vm.setSuccess(false);
             return 0;
         }
         return ((int) floatValue);
@@ -339,7 +359,7 @@ public class BitBlt {
             halftoneBits = (int[]) ((SqueakObject) bitsObject).bits;
             if (halftoneBits == null)
                 return false;
-            if (!SqueakVM.INSTANCE.isSuccess() || (halftoneHeight < 1))
+            if (!vm.isSuccess() || (halftoneHeight < 1))
                 return false;
         } else {
             //New spec accepts, basically, a word array
@@ -358,7 +378,7 @@ public class BitBlt {
         destY = checkIntOrFloatIfNil(bbPointers[5], 0);
         width = checkIntOrFloatIfNil(bbPointers[6], dest.width);
         height = checkIntOrFloatIfNil(bbPointers[7], dest.height);
-        return SqueakVM.INSTANCE.isSuccess();
+        return vm.isSuccess();
     }
 
     boolean loadBBClipRect(Object[] bbPointers) {
@@ -366,7 +386,7 @@ public class BitBlt {
         clipY = checkIntOrFloatIfNil(bbPointers[11], 0);
         clipWidth = checkIntOrFloatIfNil(bbPointers[12], dest.width);
         clipHeight = checkIntOrFloatIfNil(bbPointers[13], dest.height);
-        return SqueakVM.INSTANCE.isSuccess();
+        return vm.isSuccess();
     }
 
     boolean loadColorMap(SqueakObject bbObject) {
@@ -549,6 +569,249 @@ public class BitBlt {
             affectedB = dy + 1;
         }
         return new Rectangle(affectedL, affectedT, affectedR - affectedL, affectedB - affectedT);
+    }
+
+    String lastFailure() {
+        return lastFailure;
+    }
+
+    private boolean fail(String reason) {
+        lastFailure = reason;
+        vm.setSuccess(false);
+        return false;
+    }
+
+    private void failScan(String reason) {
+        fail(reason);
+    }
+
+    /**
+     * Loads the state needed by Primitive 103 (CharacterScanner
+     * scanCharactersFrom:to:in:rightX:stopAtX:).
+     * <p>
+     * The receiver is a CharacterScanner, a BitBlt subclass whose pointer 15
+     * is lastIndex and pointer 16 is xTable. The text and stopConditions
+     * arguments are supplied by the image.
+     */
+    boolean loadScanner(SqueakObject scanner, int start, int stop,
+                        SqueakObject string, int rightX,
+                        SqueakObject stopArray, boolean displayFlag) {
+        vm.setSuccess(true);
+        lastFailure = "";
+        scannerObject = scanner;
+        scanStart = start;
+        scanStop = stop;
+        scanString = string;
+        scanRightX = rightX;
+        scanStopArray = stopArray;
+        scanDisplayFlag = displayFlag;
+        scanAffectedArea = null;
+        // Match the C loader: these are filled per glyph by scanCharacters.
+        width = 0;
+        sourceX = 0;
+
+        if (!isIndexable(stopArray) || indexableLength(stopArray) < 1) {
+            return fail("stopConditions is not indexable");
+        }
+        if (!isIndexable(string)) {
+            return fail("source string is not indexable");
+        }
+        if (scanner == null || scanner.pointersSize() <= 16) {
+            return fail("receiver is not a CharacterScanner (too few fields)");
+        }
+        Object xTable = scanner.getPointer(16);
+        if (!(xTable instanceof SqueakObject)
+                || !isIndexable((SqueakObject) xTable)
+                || indexableLength((SqueakObject) xTable) < 1) {
+            return fail("xTable is not indexable");
+        }
+        scanXTable = (SqueakObject) xTable;
+
+        if (displayFlag) {
+            return loadBitBlt(scanner, 0, false,
+                    (SqueakObject) SqueakVM.specialObjects[Squeak.splOb_TheDisplay]);
+        }
+
+        // The C VM only reads destX when display updates are disabled.
+        destX = checkIntOrFloatIfNil(scanner.getPointer(4), 0);
+        if (!vm.isSuccess()) {
+            return fail("invalid destX");
+        }
+        return true;
+    }
+
+    /**
+     * The scanning loop from Squeak 2.2's primitiveScanCharacters. Returns the
+     * character stop code (or the stopConditions sentinel) on success, and
+     * null after setting the VM failure flag.
+     */
+    Object scanCharacters() {
+        scanAffectedArea = null;
+        int lastIndex = scanStart;
+        while (lastIndex <= scanStop) {
+            Object charValue = indexableAt(scanString, lastIndex);
+            if (!vm.isSuccess()) {
+                return null;
+            }
+            int ascii = asSmallInteger(charValue);
+            if (!vm.isSuccess()) {
+                return null;
+            }
+
+            Object stopCode = indexableAt(scanStopArray, ascii + 1);
+            if (!vm.isSuccess()) {
+                return null;
+            }
+            if (stopCode != SqueakVM.nilObj) {
+                storeLastIndex(lastIndex);
+                return stopCode;
+            }
+
+            int sourceX1 = indexableIntegerAt(scanXTable, ascii + 1);
+            int sourceX2 = indexableIntegerAt(scanXTable, ascii + 2);
+            if (!vm.isSuccess()) {
+                return null;
+            }
+            int glyphWidth = sourceX2 - sourceX1;
+            if (glyphWidth < 0) {
+                failScan("negative glyph width at index " + lastIndex);
+                return null;
+            }
+
+            int nextDestX = destX + glyphWidth;
+            if (nextDestX > scanRightX) {
+                storeLastIndex(lastIndex);
+                return indexableAt(scanStopArray, 258);
+            }
+
+            sourceX = sourceX1;
+            width = glyphWidth;
+            if (scanDisplayFlag) {
+                Rectangle affected = copyBits();
+                if (affected != null) {
+                    scanAffectedArea = scanAffectedArea == null
+                            ? affected
+                            : scanAffectedArea.union(affected);
+                }
+            }
+
+            destX = nextDestX;
+            storeDestX(destX);
+            if (!vm.isSuccess()) {
+                return null;
+            }
+            lastIndex++;
+        }
+
+        storeLastIndex(scanStop);
+        // EndOfRun is stopConditions[257]; CrossedX is 258 and is only used
+        // when a glyph would pass rightX.
+        return indexableAt(scanStopArray, 257);
+    }
+
+    Rectangle getScanAffectedArea() {
+        return scanAffectedArea;
+    }
+
+    private void storeLastIndex(int lastIndex) {
+        storeScannerField(15, lastIndex);
+    }
+
+    private void storeDestX(int value) {
+        storeScannerField(4, value);
+    }
+
+    private void storeScannerField(int zeroBasedIndex, int value) {
+        if (scannerObject == null || scannerObject.pointersSize() <= zeroBasedIndex) {
+            failScan("scanner field " + zeroBasedIndex + " is out of range");
+            return;
+        }
+        scannerObject.setPointer(zeroBasedIndex, InterpreterHelper.smallFromInt(value));
+    }
+
+    private int asSmallInteger(Object value) {
+        if (InterpreterHelper.isSTInteger(value)) {
+            return (Integer) value;
+        }
+        failScan("scanner table contains a non-integer value: " + value);
+        return 0;
+    }
+
+    private int indexableIntegerAt(SqueakObject object, int oneBasedIndex) {
+        Object value = indexableAt(object, oneBasedIndex);
+        if (!vm.isSuccess()) {
+            return 0;
+        }
+        return asSmallInteger(value);
+    }
+
+    /**
+     * One-based element access for String/ByteArray/Array/WordArray objects.
+     * Byte values are returned unsigned 0..255 so character codes above 127 are
+     * handled correctly.
+     */
+    private Object indexableAt(SqueakObject object, int oneBasedIndex) {
+        int index = oneBasedIndex - 1;
+        if (object == null || index < 0) {
+            failScan("invalid index " + oneBasedIndex + " for scanner data");
+            return SqueakVM.nilObj;
+        }
+        if (object.pointers != null) {
+            if (index >= object.pointers.length) {
+                failScan("index " + oneBasedIndex + " outside pointer array of length "
+                        + object.pointers.length);
+                return SqueakVM.nilObj;
+            }
+            Object value = object.pointers[index];
+            if (value == null) {
+                failScan("null value at scanner index " + oneBasedIndex);
+                return SqueakVM.nilObj;
+            }
+            return value;
+        }
+        if (object.bits instanceof byte[]) {
+            byte[] bytes = (byte[]) object.bits;
+            if (index >= bytes.length) {
+                failScan("index " + oneBasedIndex + " outside byte array of length "
+                        + bytes.length);
+                return SqueakVM.nilObj;
+            }
+            return Integer.valueOf(bytes[index] & 0xFF);
+        }
+        if (object.bits instanceof int[]) {
+            int[] words = (int[]) object.bits;
+            if (index >= words.length) {
+                failScan("index " + oneBasedIndex + " outside word array of length "
+                        + words.length);
+                return SqueakVM.nilObj;
+            }
+            return Integer.valueOf(words[index]);
+        }
+        failScan("scanner data is not indexable");
+        return SqueakVM.nilObj;
+    }
+
+    private static boolean isIndexable(SqueakObject object) {
+        return object != null
+                && (object.pointers != null
+                || object.bits instanceof byte[]
+                || object.bits instanceof int[]);
+    }
+
+    private static int indexableLength(SqueakObject object) {
+        if (object == null) {
+            return 0;
+        }
+        if (object.pointers != null) {
+            return object.pointers.length;
+        }
+        if (object.bits instanceof byte[]) {
+            return ((byte[]) object.bits).length;
+        }
+        if (object.bits instanceof int[]) {
+            return ((int[]) object.bits).length;
+        }
+        return 0;
     }
 
     void destMaskAndPointerInit() {

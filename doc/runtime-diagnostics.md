@@ -79,8 +79,9 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 
 解读：
 
-- `#103 primitiveScanCharacters`（`Text` 光标/扫描字符路径）仍是真实使用但缺失的原语，
-  但 Sprint 2 后失败次数已从数千降到两位数（启动阶段集中出现）。
+- `#103 primitiveScanCharacters`（`Text` 光标/扫描字符路径）已于 2026-10-27 实现
+  （见 `ISSUE-0001` / `DESIGN-0001`）；当前统计中 UNIMPLEMENTED 为 0，启动期少量
+  FAILED 来自压缩 source form 的延迟解压，与 `#96` 同源。
 - `#2 primitiveSubtract` 的失败大多来自 SmallInteger 溢出后回退到 LargeInteger/Smalltalk 路径，
   属于预期行为；应与“未实现”区分。
 - `#65 next`、`#66 nextPut`、`#67 atEnd`、`#235 string compare` 已实现，不再出现在未实现清单。

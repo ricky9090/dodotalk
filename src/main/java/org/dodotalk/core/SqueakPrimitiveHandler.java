@@ -568,7 +568,7 @@ public class SqueakPrimitiveHandler {
             case 102:
                 return beDisplay(argCount); // DisplayScreen.beDisplay
             case 103:
-                return primitiveFailNoLog(103);
+                return primitiveScanCharacters(argCount);
             case 105:
                 return popNandPushIfOK(5, primitiveStringReplace()); // string and array replace
             case 106:
@@ -2378,6 +2378,70 @@ public class SqueakPrimitiveHandler {
         if (bitbltTable.combinationRule == 22 || bitbltTable.combinationRule == 32) {
             vm.popNandPush(2, InterpreterHelper.smallFromInt(bitbltTable.bitCount));
         }
+        return true;
+    }
+
+    /**
+     * Primitive 103: CharacterScanner
+     * scanCharactersFrom:to:in:rightX:stopAtX:.
+     * <p>
+     * The receiver is a CharacterScanner (a BitBlt subclass). The scanner state
+     * is loaded and driven in {@link BitBlt}; this method only validates the
+     * Smalltalk stack, updates the display buffer when requested, and replaces
+     * the receiver plus six arguments with the returned stop code.
+     */
+    private boolean primitiveScanCharacters(int argCount) {
+        if (argCount != 6) {
+            context.success = false;
+            return false;
+        }
+
+        SqueakObject scanner = stackNonInteger(6);
+        int start = stackInteger(5);
+        int stop = stackInteger(4);
+        SqueakObject string = stackNonInteger(3);
+        int rightX = stackInteger(2);
+        SqueakObject stopArray = stackNonInteger(1);
+        Object displayFlagObject = vm.stackValue(0);
+
+        boolean displayFlag;
+        if (displayFlagObject == SqueakVM.trueObj) {
+            displayFlag = true;
+        } else if (displayFlagObject == SqueakVM.falseObj) {
+            displayFlag = false;
+        } else {
+            context.success = false;
+            return false;
+        }
+        if (!context.success) {
+            return false;
+        }
+
+        if (!bitbltTable.loadScanner(scanner, start, stop, string, rightX,
+                stopArray, displayFlag)) {
+            SqueakLogger.log_D("primitive 103: " + bitbltTable.lastFailure());
+            context.success = false;
+            return false;
+        }
+
+        Object stopCode = bitbltTable.scanCharacters();
+        if (!vm.isSuccess() || !context.success) {
+            context.success = false;
+            SqueakLogger.log_D("primitive 103: " + bitbltTable.lastFailure());
+            return false;
+        }
+
+        if (displayFlag && theDisplay != null
+                && displayBitmap != null && displayBitmapFromOrg != null) {
+            Rectangle affected = bitbltTable.getScanAffectedArea();
+            if (affected != null) {
+                copyBitmapIntToInt(displayBitmap, displayBitmapFromOrg, affected,
+                        bitbltTable.dest.pitch, bitbltTable.dest.depth);
+                theDisplay.redisplay(false, affected);
+            }
+        }
+
+        vm.popNandPush(7, stopCode);
         return true;
     }
 

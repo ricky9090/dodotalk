@@ -1,3 +1,5 @@
+import org.gradle.api.GradleException
+
 plugins {
     java
     application
@@ -49,4 +51,51 @@ tasks.test {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.compilerArgs.addAll(listOf("-Xlint:unchecked", "-Xlint:deprecation"))
+}
+
+// Guard against accidentally committing Squeak images or support files.
+// Development images should live outside the repository (../temp/test-images/).
+// This check remains as a safety net even though in-project temp/ is not used
+// for test images. See doc/test-images.md and ADR-0002.
+tasks.register("checkNoSqueakImages") {
+    group = "verification"
+    description = "Verify that no Squeak image/support files are tracked by git."
+
+    doLast {
+        val tracked = try {
+            providers.exec {
+                commandLine("git", "ls-files")
+            }.standardOutput.asText.get()
+        } catch (e: Exception) {
+            logger.warn("checkNoSqueakImages skipped: git is not available (${e.message})")
+            return@doLast
+        }
+
+        fun isSqueakAsset(path: String): Boolean {
+            val name = path.substringAfterLast('/')
+            return name.endsWith(".image", ignoreCase = true) ||
+                    name.endsWith(".image.gz", ignoreCase = true) ||
+                    name.endsWith(".image.bak", ignoreCase = true) ||
+                    name.endsWith(".image.gz.bak", ignoreCase = true) ||
+                    name.endsWith(".changes", ignoreCase = true) ||
+                    name.equals("SqueakV2.sources", ignoreCase = true)
+        }
+
+        val offenders = tracked.lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && isSqueakAsset(it) }
+                .toList()
+
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                    "Squeak image/support files must not be committed:\n" +
+                            offenders.joinToString("\n") { "  - $it" } +
+                            "\nPlace development images outside the repository at ../temp/test-images/.")
+        }
+        logger.lifecycle("checkNoSqueakImages: no tracked Squeak image/support files")
+    }
+}
+
+tasks.named("check") {
+    dependsOn("checkNoSqueakImages")
 }

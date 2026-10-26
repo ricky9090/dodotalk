@@ -15,6 +15,11 @@ DodoTalk with the launcher or `-image` option. A commonly used archive is:
 
 <https://files.squeak.org/2.2/>
 
+For local end-to-end tests, place images outside the repository at
+`../temp/test-images/`. Do not place them under the project directory (including
+`temp/`), and do not commit images, `SqueakV2.sources`, or `.changes` files; see
+`doc/test-images.md`.
+
 ## Gradle Wrapper
 
 `gradle/wrapper/gradle-wrapper.jar` and the Gradle Wrapper scripts are part of
