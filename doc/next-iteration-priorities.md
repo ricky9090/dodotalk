@@ -1,8 +1,8 @@
 # DodoTalk 下一迭代高优方向
 
-> 日期：2026-10-27（Primitive 103 完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（183 个测试；无 image 时 59 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）与 Sprint 2（显示刷新/流原语/GC 绑定）已落地。
+> 日期：2026-10-29（Primitive 96 诊断完成后更新）
+> 依据：当前代码审查、`./gradlew clean test`（187 个测试；无 image 时 63 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](README.md) 与 [`ADR-0001`](adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 `input-reliability.md`、`runtime-diagnostics.md`、`rendering-review.md`、`freeze-analysis-2026-10-24.md`。
 
@@ -11,18 +11,19 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 183 个 JUnit 5 测试；无 image 时 59 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、启动参数、测试映像发现 |
+| 测试 | 187 个 JUnit 5 测试；无 image 时 63 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、启动参数、测试映像发现 |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz`；Primitive 97 可保存并重新加载 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
-| 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 仍有少量失败 |
+| 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
 | 显示 | 1/2/4/8/16/32 bpp；脏矩形合并/裁剪；defer/force 生效；233 明确失败 |
 | 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断 |
 | 诊断 | 原语调用/失败直方图与分类、定时器延迟、输入队列深度、绘制耗时；stdout + `logs/runtime-stats.log` |
 | 文件 | 150–160、162 已接线；`imageName`/`vmPath`/路径分隔符已修正 |
 | 工程化 | 无 CI（重要但低优先级）；无 GUI 自动化冒烟、无覆盖率门禁、无性能基线 |
 
-结论：显示刷新、显示 defer/force、流原语、GC 绑定和 Primitive 103 已经补上。
-当前主要矛盾是 **96 `copyBits` 的少量失败、全屏/缩放/光标策略、以及映像可移植性和回归网**。
+结论：显示刷新、显示 defer/force、流原语、GC 绑定、Primitive 103 和 96 诊断已经补上。
+96 的剩余失败已确认是压缩 Form 的预期 `unhibernate` 回退，不再作为未知缺陷跟踪。
+当前主要矛盾是 **全屏/缩放/光标策略、映像可移植性、以及原语回归网**。
 
 ## 2. Sprint 1 + Sprint 2 已完成（不再排期）
 
@@ -61,11 +62,15 @@
   原因是 source form 的压缩 bits（与 96 同源），由 Squeak 回退路径解压后继续。
 - Text/Paragraph 光标、扫描字符路径已在真实窗口复验通过（2026-10-27）。
 
-### P1-2：Primitive 96 `copyBits` 的少量失败
+### P1-2（已完成）：Primitive 96 `copyBits` 的少量失败
 
-- 运行统计偶发 4–5 次失败（约 1/3000 调用）。
-- 需要结合操作复现，确认是非法 BitBlt 参数还是 DodoTalk 边界处理。
-- 不应直接吞掉失败；先复现，再决定修 BitBlt 还是修调用方。
+- 见 `ISSUE-0002` / `DESIGN-0002`。
+- full image 复现确认：96 的失败全部来自压缩 source/destination Form，
+  由映像 `BitBlt>>copyBits` 的 `unhibernate` 回退处理；未发现非压缩 Form
+  的参数/边界错误。
+- 已补 `primitive 96: <reason>` 调试日志、压缩 Form 原因区分、压缩 halftone
+  类型检查，以及 `CopyBitsTest` 4 个回归用例。
+- 保留 `FAILED` 分类，避免把未来真正的 BitBlt 错误也隐藏掉。
 
 ### P1-3：全屏/窗口缩放/光标
 
@@ -102,7 +107,7 @@
 | 顺序 | 任务 | 关键动作 | 验收标准 |
 |------|------|----------|----------|
 | 1 | **已完成** Primitive 103 | 移植 scanner 状态与 `scanCharacters`；补合成对象测试 | 统计中 103 UNIMPLEMENTED 为 0；文本光标/扫描正常 |
-| 2 | 96 `copyBits` 失败 | 复现 4–5 次失败；检查 BitBlt 边界/参数 | 失败可解释或归零；不吞异常 |
+| 2 | **已完成** 96 `copyBits` 失败 | 复现并确认压缩 Form 回退；补日志与回归测试 | 失败可解释；不吞异常；测试覆盖 |
 | 3 | 全屏/缩放/光标决策 | 二选一：实现并 remap display，或明确固定尺寸并删除死代码 | 无假成功；文档写明策略 |
 | 4 | 快照交叉验证 | 用原版 Squeak 2.2 打开 DodoTalk 快照；评估 raw `.image` 支持 | 至少一个快照可被原版打开，或记录明确阻塞点 |
 | 5 | 原语测试网 | 正常 + 失败路径；default 行为回归 | 新增原语有测试兜底 |
@@ -123,11 +128,10 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 183；
+4. `./gradlew clean test` 全绿，测试数不低于当前 187；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论
 
-接下来先处理 **96 `copyBits` 的少量失败**，
-同时给全屏/缩放/光标定策略、做快照交叉验证和原语测试网；
-103 已完成，CI 与声音/网络继续后置。
+96 与 103 已完成，接下来处理 **全屏/缩放/光标策略**，
+同时做快照交叉验证和原语测试网；CI 与声音/网络继续后置。

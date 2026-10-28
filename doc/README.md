@@ -1,6 +1,6 @@
 # DodoTalk 文档索引
 
-> 最后更新：2026-10-27
+> 最后更新：2026-10-29
 > 文档流程见 [ADR-0001](adr/ADR-0001-documentation-workflow.md)。
 
 ## 当前路线图
@@ -19,6 +19,7 @@
 | ID | 标题 | 状态 | Design |
 |----|------|------|--------|
 | [ISSUE-0001](issues/ISSUE-0001-primitive-103-scan-characters.md) | Primitive 103 scanCharacters | done | [DESIGN-0001](design/DESIGN-0001-primitive-103-scan-characters.md) |
+| [ISSUE-0002](issues/ISSUE-0002-primitive-96-copybits-failures.md) | Primitive 96 copyBits 失败诊断与压缩 Form 回退 | done | [DESIGN-0002](design/DESIGN-0002-primitive-96-copybits-failures.md) |
 
 ## 模板
 

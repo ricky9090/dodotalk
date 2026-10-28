@@ -85,7 +85,12 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 - `#2 primitiveSubtract` 的失败大多来自 SmallInteger 溢出后回退到 LargeInteger/Smalltalk 路径，
   属于预期行为；应与“未实现”区分。
 - `#65 next`、`#66 nextPut`、`#67 atEnd`、`#235 string compare` 已实现，不再出现在未实现清单。
-- `#96 copyBits` 的少量失败需要结合当时操作复现，可能是非法 BitBlt 参数。
+- `#96 copyBits` 的少量 FAILED 已于 2026-10-29 复现（见 `ISSUE-0002` /
+  `DESIGN-0002`）：全部来自压缩 source/destination Form。原语失败后，
+  映像 `BitBlt>>copyBits` 会 `unhibernate` 并重试，属于 Squeak 2.2 的预期
+  回退，不是 BitBlt 参数错误。开启 `-PsqueakDebug=true` 可看到
+  `primitive 96: ... (possibly compressed bits)`。保留 `FAILED` 分类，
+  以免掩盖未来真正的 96 错误。
 
 ## 5. 测试
 

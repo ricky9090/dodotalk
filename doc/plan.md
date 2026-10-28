@@ -2,7 +2,7 @@
 
 > 基于代码深度分析制定的分阶段改进路线图
 >
-> **状态（2026-10-27）**：Phase 1 的 1.1-1.9 已完成；Phase 1.5 的 1.10-1.14 已完成，输入可靠性已人工验收通过。Phase 1.6 已完成：1.15 数值/字符串原语纠错、1.16 映像保存安全、1.17 `cmd-.` 中断、1.18 运行时诊断均已落地。Sprint 2（显示刷新、流原语、GC 绑定）已完成。Sprint 3 的 Primitive 103 `scanCharacters` 已完成。仓库已移除内置 image，改用 GUI 启动器/`-image` 选择用户提供的 `*.image.gz`；当前 183 个测试（无 image 时 59 个集成测试跳过）。CI 接入标记为重要但低优先级，单人维护阶段暂缓。
+> **状态（2026-10-29）**：Phase 1 的 1.1-1.9 已完成；Phase 1.5 的 1.10-1.14 已完成，输入可靠性已人工验收通过。Phase 1.6 已完成：1.15 数值/字符串原语纠错、1.16 映像保存安全、1.17 `cmd-.` 中断、1.18 运行时诊断均已落地。Sprint 2（显示刷新、流原语、GC 绑定）已完成。Sprint 3 的 Primitive 103 `scanCharacters`、Primitive 96 `copyBits` 诊断已完成。仓库已移除内置 image，改用 GUI 启动器/`-image` 选择用户提供的 `*.image.gz`；当前 187 个测试（无 image 时 63 个集成测试跳过）。CI 接入标记为重要但低优先级，单人维护阶段暂缓。
 
 ---
 
@@ -235,7 +235,7 @@ Week 1-3   : Phase 1 完成 → 可测、可保存
 Week 3-4   : Phase 1.5 完成 → 输入单击/拖拽/菜单可靠（已人工验收）
 Week 4-5   : Phase 1.6 完成 → 数值纠错、保存安全、中断键、诊断（已完成）
 Week 6-8   : Sprint 2 完成 → 脏矩形、显示语义、流原语、GC（已完成）
-Week 9-11  : Sprint 3 → 103/96、全屏策略、快照交叉验证、测试网
+Week 9-11  : Sprint 3 → 103/96 已完成；全屏策略、快照交叉验证、测试网
 Week 12-15 : Phase 2 完成 → 模块化、可并行开发
 Week 16-20 : Phase 3 完成 → 核心原语完整
 Week 21-23 : Phase 4 完成 → 生产级代码质量
@@ -281,7 +281,7 @@ Week 24+   : Phase 5 按需推进
 ## 当前下一步（Sprint 3）
 
 1. **已完成** Primitive 103 `scanCharacters`（见 `doc/issues/ISSUE-0001-*` / `doc/design/DESIGN-0001-*`）
-2. Primitive 96 `copyBits` 少量失败复现与修复
+2. **已完成** Primitive 96 `copyBits` 失败诊断（见 `doc/issues/ISSUE-0002-*` / `doc/design/DESIGN-0002-*`）；确认剩余失败均为压缩 Form 回退
 3. 全屏/缩放/光标策略：实现或明确固定尺寸并删除死代码
 4. 快照与原版 Squeak 2.2 交叉验证；评估 raw `.image`
 5. 原语正常/失败路径测试网；CI 接入保持低优先级

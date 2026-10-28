@@ -201,7 +201,9 @@ public class BitBlt {
         noHalftone = ignoreSourceOrHalftone(halftoneForm);
 
         if (!dest.loadFrom(destForm)) {
-            return fail("destination form cannot be loaded");
+            return fail(hasCompressedBits(destForm)
+                    ? "destination form cannot be loaded (possibly compressed bits)"
+                    : "destination form cannot be loaded");
         }
         if (!loadBBDestRect(bbPointers)) {
             return fail("invalid destination rectangle");
@@ -213,7 +215,9 @@ public class BitBlt {
             sourceX = sourceY = 0;
         } else {
             if (!source.loadFrom(sourceForm)) {
-                return fail("source form cannot be loaded (possibly compressed bits)");
+                return fail(hasCompressedBits(sourceForm)
+                        ? "source form cannot be loaded (possibly compressed bits)"
+                        : "source form cannot be loaded");
             }
             if (!loadColorMap(bbObject)) {
                 return fail("invalid color map");
@@ -228,7 +232,7 @@ public class BitBlt {
             }
         }
         if (!loadBBHalftoneForm(halftoneForm)) {
-            return fail("invalid halftone form");
+            return fail("halftone form cannot be loaded (possibly compressed bits)");
         }
         if (!loadBBClipRect(bbPointers)) {
             return fail("invalid clip rectangle");
@@ -265,6 +269,24 @@ public class BitBlt {
         }
         destIsDisplay = destForm == displayForm;
         return true;
+    }
+
+    /**
+     * A Squeak Form whose bits slot holds a ByteArray is a compressed Form.
+     * The image's Smalltalk fallback unhibernates it and retries; BitBlt only
+     * needs to report the failure precisely.
+     */
+    private static boolean hasCompressedBits(Object form) {
+        if (!(form instanceof SqueakObject)) {
+            return false;
+        }
+        Object[] formPointers = ((SqueakObject) form).pointers;
+        if (formPointers == null || formPointers.length < 1) {
+            return false;
+        }
+        Object bitsObject = formPointers[0];
+        return bitsObject instanceof SqueakObject
+                && ((SqueakObject) bitsObject).bits instanceof byte[];
     }
 
     boolean ignoreSourceOrHalftone(Object formPointer) {
@@ -325,13 +347,21 @@ public class BitBlt {
         }
 
         // retrofit code style, refer to SqueakJS and Squeak itself
-        SqueakObject bitsObject;
         if (InterpreterHelper.isPointers(aForm) && InterpreterHelper.SIZEOF(aForm) >= 4) {
-            // Old-style 32xN monochrome halftone Forms
-            bitsObject = InterpreterHelper.fetchPointerOfObject(0, aForm);
-            halftoneBits = (int[]) bitsObject.bits;
+            // Old-style 32xN monochrome halftone Forms. A compressed Form
+            // stores byte[] bits; reject it cleanly so the image can
+            // unhibernate and retry instead of throwing ClassCastException.
+            Object bitsObject = InterpreterHelper.fetchPointerOfObject(0, aForm);
+            if (!(bitsObject instanceof SqueakObject)) {
+                return false;
+            }
+            Object bits = ((SqueakObject) bitsObject).bits;
+            if (!(bits instanceof int[])) {
+                return false;
+            }
+            halftoneBits = (int[]) bits;
             halftoneHeight = InterpreterHelper.fetchIntegerOfObject(2, aForm);
-            if (halftoneBits == null) {
+            if (halftoneBits.length < 1) {
                 return false;
             }
             if (halftoneHeight < 1) {

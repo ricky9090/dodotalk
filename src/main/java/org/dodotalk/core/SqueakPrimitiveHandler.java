@@ -308,6 +308,14 @@ public class SqueakPrimitiveHandler {
         return lastFailureKind;
     }
 
+    /**
+     * Reason for the most recent BitBlt/scanner failure, or an empty string
+     * when the last load succeeded. Package-visible for regression tests.
+     */
+    String lastBitBltFailure() {
+        return bitbltTable.lastFailure();
+    }
+
     private boolean doPrimitiveInternal(int index, int argCount) {
         //SqueakLogger.log_D("doPrimitive: " + index + ", time: " + System.currentTimeMillis());
         context.reset();
@@ -2366,6 +2374,7 @@ public class SqueakPrimitiveHandler {
     private boolean primitiveCopyBits(SqueakObject rcvr, int argCount) {
         // no rcvr class check, to allow unknown subclasses (e.g. under Turtle)
         if (!bitbltTable.loadBitBlt(rcvr, argCount, false, (SqueakObject) SqueakVM.specialObjects[Squeak.splOb_TheDisplay])) {
+            SqueakLogger.log_D("primitive 96: " + bitbltTable.lastFailure());
             return false;
         }
 
