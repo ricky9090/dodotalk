@@ -67,6 +67,39 @@ class CopyBitsTest {
     }
 
     @Test
+    @DisplayName("tally rules replace the receiver without overwriting the block home slot")
+    void tallyRulesPreserveBlockHome() {
+        for (int rule : new int[]{22, 32}) {
+            SqueakObject destination = form(words(0, 0), 2, 1, 32);
+            SqueakObject source = form(words(0xFFFFFFFF, 0), 2, 1, 32);
+            SqueakObject bitBlt = bitBlt(destination, source, null, rule, 2, 1);
+
+            // A BlockContext stores its home at pointer 5. The tally result
+            // must replace the receiver at pointer 6 instead.
+            SqueakObject block = pointers(10);
+            block.setPointer(5, SqueakVM.nilObj);
+            block.setPointer(6, bitBlt);
+
+            SqueakObject savedContext = vm.activeContext;
+            int savedSp = vm.sp;
+            try {
+                vm.activeContext = block;
+                vm.sp = 6;
+
+                assertTrue(handler.doPrimitive(96, 0),
+                        "tally copyBits should succeed for rule " + rule);
+                assertSame(SqueakVM.nilObj, block.getPointer(5),
+                        "rule " + rule + " must not overwrite BlockContext home");
+                assertTrue(block.getPointer(6) instanceof Integer,
+                        "rule " + rule + " should replace the receiver with bitCount");
+            } finally {
+                vm.activeContext = savedContext;
+                vm.sp = savedSp;
+            }
+        }
+    }
+
+    @Test
     @DisplayName("a compressed halftone form fails instead of throwing ClassCastException")
     void compressedHalftoneFailsCleanly() {
         SqueakObject destination = form(words(0), 1, 1, 32);

@@ -164,3 +164,5 @@ DodoTalk 独有的缺陷。但在确认这一点之前，不能把失败直接�
 - `./gradlew clean test`：187 个测试，0 失败；新增 4 个测试。
 - 结论：96 不再作为“未知失败”跟踪；保留 `FAILED` 分类，避免掩盖未来真正的
   BitBlt 参数/边界错误。
+- 后续发现 rule 22/32 的 tally 分支会在 0 参数 `copyBits` 时覆盖
+  `BlockContext_home`，已由 `ISSUE-0003` / `DESIGN-0003` 修复。

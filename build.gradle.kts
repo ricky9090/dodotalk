@@ -99,3 +99,14 @@ tasks.register("checkNoSqueakImages") {
 tasks.named("check") {
     dependsOn("checkNoSqueakImages")
 }
+
+// Developer diagnostics for user-supplied images. The tool lives in the
+// test source set so it can inspect package-private VM state without
+// becoming part of the production API. See doc/image-inspector.md.
+tasks.register<JavaExec>("inspectImage") {
+    group = "diagnostics"
+    description = "Inspect a Squeak image object graph (developer tool)."
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.getByName("test").runtimeClasspath
+    mainClass.set("org.dodotalk.core.ImageInspector")
+}

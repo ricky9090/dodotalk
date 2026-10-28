@@ -20,6 +20,7 @@
 |----|------|------|--------|
 | [ISSUE-0001](issues/ISSUE-0001-primitive-103-scan-characters.md) | Primitive 103 scanCharacters | done | [DESIGN-0001](design/DESIGN-0001-primitive-103-scan-characters.md) |
 | [ISSUE-0002](issues/ISSUE-0002-primitive-96-copybits-failures.md) | Primitive 96 copyBits 失败诊断与压缩 Form 回退 | done | [DESIGN-0002](design/DESIGN-0002-primitive-96-copybits-failures.md) |
+| [ISSUE-0003](issues/ISSUE-0003-primitive-96-tally-stack-underflow.md) | Primitive 96 tally 规则破坏 BlockContext home | done | [DESIGN-0003](design/DESIGN-0003-primitive-96-tally-stack-underflow.md) |
 
 ## 模板
 
@@ -29,6 +30,8 @@
 
 ## 参考文档
 
+- [术语词典](glossary.md)
+- [映像检查器（ImageInspector）](image-inspector.md)
 - [测试映像放置与发现](test-images.md)
 - [映像格式与 gzip 封装](image-format.md)
 - [Java 绘制层审查](rendering-review.md)
@@ -38,10 +41,12 @@
 - [原语表](primitive-table.md)
 - [BitBlt 操作表](bb-operation-table.md)
 
-## 历史/背景文档
+## 历史/背景文档（归档）
 
-以下文档保留在原位置，作为历史分析参考；新决策请写入 Issue / Design / ADR。
+以下文档已移入 [`archives/`](archives/README.md)，作为历史分析参考；
+新决策请写入 Issue / Design / ADR。
 
-- [2026-09-13 深度分析报告](report_20260913.md)
-- [Potato VM 对比分析](potato-comparison-2026-10-25.md)
-- [2026-10-24 冻结分析](freeze-analysis-2026-10-24.md)
+- [归档目录说明](archives/README.md)
+- [2026-09-13 深度分析报告](archives/report_20260913.md)
+- [Potato VM 对比分析](archives/potato-comparison-2026-10-25.md)
+- [2026-10-24 冻结分析](archives/freeze-analysis-2026-10-24.md)

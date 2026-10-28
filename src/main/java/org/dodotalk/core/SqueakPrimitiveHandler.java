@@ -2385,7 +2385,9 @@ public class SqueakPrimitiveHandler {
             theDisplay.redisplay(false, affectedArea);
         }
         if (bitbltTable.combinationRule == 22 || bitbltTable.combinationRule == 32) {
-            vm.popNandPush(2, InterpreterHelper.smallFromInt(bitbltTable.bitCount));
+            // copyBits has no arguments; the tally result replaces the receiver.
+            // The 1-argument entry still needs to pop the receiver plus its arg.
+            vm.popNandPush(argCount + 1, InterpreterHelper.smallFromInt(bitbltTable.bitCount));
         }
         return true;
     }

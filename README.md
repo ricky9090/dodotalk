@@ -161,7 +161,7 @@ I'm planning to add more improvements to this project:
 - [doc/runtime-diagnostics.md](doc/runtime-diagnostics.md) — `-PsqueakStats=true` output and interpretation
 - [doc/plan.md](doc/plan.md) — phased maintenance plan
 - [doc/image-format.md](doc/image-format.md) — image format, gzip wrapper and original-Squeak compatibility plan
-- [doc/report_20260913.md](doc/report_20260913.md) — historical deep-dive analysis
+- [doc/archives/report_20260913.md](doc/archives/report_20260913.md) — historical deep-dive analysis
 
 ## Other derivative/fork of JSqueak
 **Potato VM**<br/>

@@ -50,8 +50,10 @@ The Java package is `org.dodotalk`.
   - `doc/test-images.md` — local test-image layout and auto-discovery
   - `doc/next-iteration-priorities.md`, `doc/plan.md` — roadmap and phased plan
   - `doc/image-format.md`, `doc/rendering-review.md`, `doc/runtime-diagnostics.md`, `doc/input-reliability.md` — reference notes
+  - `doc/glossary.md` — shared terminology dictionary (VM, BitBlt, contexts, image, diagnostics)
+  - `doc/image-inspector.md` — developer object-graph/context inspection tool (`./gradlew inspectImage`)
   - `doc/primitive-table.md`, `doc/bytecode-table.md`, `doc/bb-operation-table.md` — reference tables
-  - `doc/report_20260913.md`, `doc/potato-comparison-2026-10-25.md`, `doc/freeze-analysis-2026-10-24.md` — historical/background reports
+  - `doc/archives/` — historical/background reports (read-only context, not current behavior)
 - Root keeps `README.md`, `AGENTS.md`, `AUTHORS`, and `THIRD_PARTY_NOTICES.md`; put other Markdown under `doc/`.
 - `build/` — generated Gradle output (ignored; do not edit)
 
@@ -72,6 +74,7 @@ The Java package is `org.dodotalk`.
 - `./gradlew run -PsqueakStats=true` collects primitive/timer/input/frame diagnostics, prints a summary at exit, and writes `logs/runtime-stats.log`. See `doc/runtime-diagnostics.md`.
 - `./gradlew run -PsqueakLogging=false` disables all application logging.
 - `./gradlew run -PsqueakPrimitiveFailures=false` suppresses failed-primitive debug messages.
+- `./gradlew inspectImage --args="--image <file> --summary"` runs the developer object-graph/context inspector; see `doc/image-inspector.md`.
 - Log messages are sanitized: control characters (including ESC) are escaped and long messages are truncated, so binary image data cannot corrupt the terminal.
 
 ## Documentation Workflow
@@ -93,7 +96,7 @@ The Java package is `org.dodotalk`.
 - **SmallInts**: 31-bit integers (`minSmallInt = -0x40000000`, `maxSmallInt = 0x3FFFFFFF`). Integer overflow uses the `nonSmallInt` sentinel.
 - **Input reliability**: `InputEventLatch` provides monotonic wakeups; `MouseStatus` queues press/release transitions so short clicks are not lost. Manually verified in a real window on 2026-10-24. See `doc/input-reliability.md`.
 - **File primitives**: 150–160 and 162 are wired to `FileSystemPrimitives`; 163–169 remain stubs. `imageName`/`vmPath`/path delimiter now use real platform paths.
-- **Timer responsiveness**: the interrupt feedback counter is bounded and `primitiveYield` forces an interrupt check; see `doc/freeze-analysis-2026-10-24.md`.
+- **Timer responsiveness**: the interrupt feedback counter is bounded and `primitiveYield` forces an interrupt check; see `doc/archives/freeze-analysis-2026-10-24.md`.
 - **Image snapshots**: `SqueakImage.save(File)` writes to a temporary file, fsyncs, keeps the previous image as `<name>.bak`, and atomically replaces the target. The launcher boots the selected image directly; Primitive 97 saves next to it. `Save as...` keeps the logical name (for example `foobar.image`) and writes `foobar.image.gz`; Primitive 121 sets the logical name, Primitive 97 leaves `falseObj` on success (Squeak's `resuming` flag). `vmPath` is the selected image's parent, so user-supplied `SqueakV2.sources` / `.changes` next to the image are found; nothing is copied from classpath resources. Squeak debugger stacks go to a `logs/` directory next to the image; runtime statistics go to the project `logs/runtime-stats.log` when enabled.
 - **gzip is DodoTalk-specific**: Squeak 2.2 writes raw `.image` data; DodoTalk currently reads/writes gzip only. The launcher intentionally accepts only `*.image.gz`. Supporting original raw Squeak images requires magic sniffing and a raw write path; see `doc/image-format.md`.
 - **Interrupt key**: `Alt+.` (`cmd-.`, Squeak keycode `2094`) is consumed by `KeyboardQueue` and raises `interruptPending`; Primitive 133 lets the image change the key. `checkForInterrupts` signals `TheInterruptSemaphore` at the next send/backward jump. Automated coverage and real-window acceptance both passed; see `doc/input-reliability.md`. Runtime statistics go to stdout and `logs/runtime-stats.log`; normal window close uses exit code 0.
@@ -102,11 +105,11 @@ The Java package is `org.dodotalk`.
 
 - **CI intentionally deferred**: there is no `.github/workflows`. CI is important but low priority while the project is maintained by a single developer; the current gate is local `./gradlew clean test` plus manual smoke testing. Revisit when collaboration or release cadence requires it. See `doc/next-iteration-priorities.md`.
 - **Snapshot format validation**: atomic saving and reload are covered by tests, but saved images have not been cross-validated against the original Squeak 2.2 VM.
-- **Partial primitive coverage**: many advanced integer, stream, sound and network primitives still fail. `-PsqueakStats=true` reports a failure histogram classified as unimplemented/failed/exception/intentional; use it before choosing the next primitive. 65–67, 103 (`scanCharacters`), 127, 140, 231 and 235 are now implemented. The remaining 96 (`copyBits`) and 103 startup FAILED entries are compressed source/destination Forms; the image's `BitBlt>>copyBits` fallback calls `unhibernate` and retries, so this is expected (see `ISSUE-0002`). Primitive 172 (`primSoundStop`) is intentionally a tracked no-op stub (`NO_OP_STUB_PRIMITIVES`) so snapshot shutdown can complete; see `SqueakPrimitiveHandler`.
+- **Partial primitive coverage**: many advanced integer, stream, sound and network primitives still fail. `-PsqueakStats=true` reports a failure histogram classified as unimplemented/failed/exception/intentional; use it before choosing the next primitive. 65–67, 103 (`scanCharacters`), 127, 140, 231 and 235 are now implemented. The remaining 96 (`copyBits`) and 103 startup FAILED entries are compressed source/destination Forms; the image's `BitBlt>>copyBits` fallback calls `unhibernate` and retries, so this is expected (see `ISSUE-0002`). Tally rules 22/32 now pop `argCount + 1`, so a 0-argument `copyBits` no longer overwrites `BlockContext_home` (see `ISSUE-0003`). Primitive 172 (`primSoundStop`) is intentionally a tracked no-op stub (`NO_OP_STUB_PRIMITIVES`) so snapshot shutdown can complete; see `SqueakPrimitiveHandler`.
 - **Global VM state**: `SqueakVM.INSTANCE` and `SqueakVM.objectMemory` are static, so multiple VM instances are not supported.
 - **Display**: 1/2/4/8/16/32-bit depths are supported and Swing access is confined to the EDT. Dirty rectangles are merged and only dirty areas repaint; `deferUpdates`, `forceDisplayUpdate` (231) and `showDisplayRect` (127) are implemented. User window resizing is temporarily disabled; display-size changes must come from the image (`beDisplay`/restore display). Primitive 233 full screen now fails explicitly instead of reporting fake success. See `doc/rendering-review.md`.
 - **Rendering priorities**: full-screen/window-resize/custom-cursor strategy; 96 `copyBits` failures are understood (compressed Form fallback, see `ISSUE-0002`).
-- **Latest roadmap**: `doc/next-iteration-priorities.md` (Sprint 1 interrupt/diagnostics, Sprint 2 display/stream/GC, Primitive 103 `scanCharacters` and Primitive 96 diagnostics are complete and smoke-tested; next is full-screen/resize/cursor strategy, snapshot cross-validation and the primitive test net; CI is important but low priority).
+- **Latest roadmap**: `doc/next-iteration-priorities.md` (Sprint 1 interrupt/diagnostics, Sprint 2 display/stream/GC, Primitive 103 `scanCharacters`, Primitive 96 diagnostics and the tally stack fix are complete and smoke-tested; next is full-screen/resize/cursor strategy, snapshot cross-validation and the primitive test net; CI is important but low priority).
 - **Legacy `out/` is unused**: Gradle builds into `build/`; do not add files under `out/`.
 
 ## What NOT to Do

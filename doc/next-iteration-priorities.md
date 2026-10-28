@@ -1,17 +1,17 @@
 # DodoTalk 下一迭代高优方向
 
-> 日期：2026-10-29（Primitive 96 诊断完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（187 个测试；无 image 时 63 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断已落地。
+> 日期：2026-10-29（Primitive 96 诊断与 tally 栈修复完成后更新）
+> 依据：当前代码审查、`./gradlew clean test`（188 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断与 tally 栈修复已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](README.md) 与 [`ADR-0001`](adr/ADR-0001-documentation-workflow.md)。
-> 相关记录见 `input-reliability.md`、`runtime-diagnostics.md`、`rendering-review.md`、`freeze-analysis-2026-10-24.md`。
+> 相关记录见 `input-reliability.md`、`runtime-diagnostics.md`、`rendering-review.md`、`archives/freeze-analysis-2026-10-24.md`。
 
 ## 1. 当前基线
 
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 187 个 JUnit 5 测试；无 image 时 63 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、启动参数、测试映像发现 |
+| 测试 | 188 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径与 tally 栈效果、启动参数、测试映像发现 |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz`；Primitive 97 可保存并重新加载 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
@@ -71,6 +71,9 @@
 - 已补 `primitive 96: <reason>` 调试日志、压缩 Form 原因区分、压缩 halftone
   类型检查，以及 `CopyBitsTest` 4 个回归用例。
 - 保留 `FAILED` 分类，避免把未来真正的 BitBlt 错误也隐藏掉。
+- 后续排查发现 rule 22/32 的 tally 分支错误地 `popNandPush(2, ...)`，
+  会在 0 参数 `copyBits` 时覆盖 BlockContext 的 home；已由
+  `ISSUE-0003` / `DESIGN-0003` 修复并补充回归测试。
 
 ### P1-3：全屏/窗口缩放/光标
 
@@ -107,7 +110,7 @@
 | 顺序 | 任务 | 关键动作 | 验收标准 |
 |------|------|----------|----------|
 | 1 | **已完成** Primitive 103 | 移植 scanner 状态与 `scanCharacters`；补合成对象测试 | 统计中 103 UNIMPLEMENTED 为 0；文本光标/扫描正常 |
-| 2 | **已完成** 96 `copyBits` 失败 | 复现并确认压缩 Form 回退；补日志与回归测试 | 失败可解释；不吞异常；测试覆盖 |
+| 2 | **已完成** 96 `copyBits` 失败与 tally 栈效果 | 确认压缩 Form 回退；修正 rule 22/32 弹出个数 | 失败可解释；BlockContext home 不被覆盖 |
 | 3 | 全屏/缩放/光标决策 | 二选一：实现并 remap display，或明确固定尺寸并删除死代码 | 无假成功；文档写明策略 |
 | 4 | 快照交叉验证 | 用原版 Squeak 2.2 打开 DodoTalk 快照；评估 raw `.image` 支持 | 至少一个快照可被原版打开，或记录明确阻塞点 |
 | 5 | 原语测试网 | 正常 + 失败路径；default 行为回归 | 新增原语有测试兜底 |
@@ -128,7 +131,7 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 187；
+4. `./gradlew clean test` 全绿，测试数不低于当前 188；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论

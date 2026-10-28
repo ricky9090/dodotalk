@@ -120,7 +120,7 @@ primitiveYield:     while (!screenEvent) wait(100ms)
 人工测试发现“操作几次后界面卡死、CPU 很低”，排查确认不是输入闩锁死锁，而是
 `checkForInterrupts` 的反馈计数器无上限，导致定时器/Delay 长时间不触发；同时文件原语
 未接线、映像名/路径分隔符错误会让 Squeak 弹出 changes 文件错误框。详细证据和修复见
-`freeze-analysis-2026-10-24.md`。
+`archives/freeze-analysis-2026-10-24.md`。
 
 ## 6. `cmd-.` 人工验收结果（2026-10-24）
 

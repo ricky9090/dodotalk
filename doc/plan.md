@@ -2,7 +2,7 @@
 
 > 基于代码深度分析制定的分阶段改进路线图
 >
-> **状态（2026-10-29）**：Phase 1 的 1.1-1.9 已完成；Phase 1.5 的 1.10-1.14 已完成，输入可靠性已人工验收通过。Phase 1.6 已完成：1.15 数值/字符串原语纠错、1.16 映像保存安全、1.17 `cmd-.` 中断、1.18 运行时诊断均已落地。Sprint 2（显示刷新、流原语、GC 绑定）已完成。Sprint 3 的 Primitive 103 `scanCharacters`、Primitive 96 `copyBits` 诊断已完成。仓库已移除内置 image，改用 GUI 启动器/`-image` 选择用户提供的 `*.image.gz`；当前 187 个测试（无 image 时 63 个集成测试跳过）。CI 接入标记为重要但低优先级，单人维护阶段暂缓。
+> **状态（2026-10-29）**：Phase 1 的 1.1-1.9 已完成；Phase 1.5 的 1.10-1.14 已完成，输入可靠性已人工验收通过。Phase 1.6 已完成：1.15 数值/字符串原语纠错、1.16 映像保存安全、1.17 `cmd-.` 中断、1.18 运行时诊断均已落地。Sprint 2（显示刷新、流原语、GC 绑定）已完成。Sprint 3 的 Primitive 103 `scanCharacters`、Primitive 96 `copyBits` 诊断与 tally 栈效果修复已完成。仓库已移除内置 image，改用 GUI 启动器/`-image` 选择用户提供的 `*.image.gz`；当前 188 个测试（无 image 时 64 个集成测试跳过）。CI 接入标记为重要但低优先级，单人维护阶段暂缓。
 
 ---
 
@@ -281,7 +281,7 @@ Week 24+   : Phase 5 按需推进
 ## 当前下一步（Sprint 3）
 
 1. **已完成** Primitive 103 `scanCharacters`（见 `doc/issues/ISSUE-0001-*` / `doc/design/DESIGN-0001-*`）
-2. **已完成** Primitive 96 `copyBits` 失败诊断（见 `doc/issues/ISSUE-0002-*` / `doc/design/DESIGN-0002-*`）；确认剩余失败均为压缩 Form 回退
+2. **已完成** Primitive 96 `copyBits` 失败诊断与 tally 栈修复（见 `ISSUE-0002` / `DESIGN-0002`、`ISSUE-0003` / `DESIGN-0003`）；确认压缩 Form 回退并修正 rule 22/32 弹出个数
 3. 全屏/缩放/光标策略：实现或明确固定尺寸并删除死代码
 4. 快照与原版 Squeak 2.2 交叉验证；评估 raw `.image`
 5. 原语正常/失败路径测试网；CI 接入保持低优先级
