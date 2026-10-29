@@ -27,11 +27,28 @@ public class MouseStatus extends MouseInputAdapter {
     public static final int YELLOW = 2;
     public static final int BLUE = 1;
 
+    /**
+     * Maximum idle polling rate for the Squeak point/button primitives.
+     * <p>
+     * Squeak 2.2 MVC menus (including the missing-sources popup) contain
+     * unbounded loops such as {@code [Sensor anyButtonPressed] whileFalse: []}.
+     * Without a limit, the VM calls Primitive 107 millions of times per second
+     * and pegs one CPU core. 250 Hz matches current high-end touch sampling and
+     * is far above what a 30-50 fps UI needs. Mouse input wakes the wait
+     * immediately, so this limits only idle polling, not response latency.
+     */
+    public static final int POLL_RATE_HZ = 250;
+
+    private static final long POLL_INTERVAL_NANOS = 1_000_000_000L / POLL_RATE_HZ;
     private static final int MAX_BUTTON = 8;
     private static final int MAX_QUEUED_EVENTS = 1024;
 
     private final Runnable inputSignal;
     private final Object lock = new Object();
+
+    private final PollGate pointPollGate = new PollGate();
+    private final PollGate buttonsPollGate = new PollGate();
+    private long inputSequence;
 
     private final Deque<MouseEventRecord> events = new ArrayDeque<>();
     private final boolean[] physicalDown = new boolean[MAX_BUTTON + 1];
@@ -206,6 +223,16 @@ public class MouseStatus extends MouseInputAdapter {
     }
 
     /**
+     * Primitive 90 entry point. Like {@link #peekMousePoint()}, but limits
+     * idle polls to {@link #POLL_RATE_HZ}. A mouse event wakes the wait
+     * immediately, so drag and click latency is not tied to this rate.
+     */
+    public Point pollMousePoint() {
+        awaitPollSlot(pointPollGate);
+        return peekMousePoint();
+    }
+
+    /**
      * Consumes the button state of the transition currently being presented.
      * If no transition is pending, the current physical state is returned,
      * which keeps drag polling working.
@@ -228,6 +255,52 @@ public class MouseStatus extends MouseInputAdapter {
             }
             return event.buttons;
         }
+    }
+
+    /**
+     * Primitive 107 entry point. Like {@link #consumeButtons()}, but limits
+     * idle polls to {@link #POLL_RATE_HZ}. Any queued transition bypasses the
+     * wait, and mouse input wakes a waiting poll immediately.
+     */
+    public int pollMouseButtons() {
+        awaitPollSlot(buttonsPollGate);
+        return consumeButtons();
+    }
+
+    /**
+     * Adds a bounded wait before a sensor poll when the image is spinning.
+     * The wait ends early when a mouse event arrives, so the image sees input
+     * immediately instead of waiting for the next poll interval.
+     */
+    private void awaitPollSlot(PollGate gate) {
+        synchronized (lock) {
+            long now = System.nanoTime();
+            long earliest = gate.lastPollNanos + POLL_INTERVAL_NANOS;
+            long observed = gate.observedSequence;
+            if (gate.initialized && now < earliest
+                    && inputSequence == observed && !hasPendingTransitionLocked()) {
+                while (now < earliest && inputSequence == observed
+                        && !hasPendingTransitionLocked()) {
+                    long remaining = earliest - now;
+                    try {
+                        lock.wait(remaining / 1_000_000L,
+                                (int) (remaining % 1_000_000L));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    now = System.nanoTime();
+                }
+            }
+            gate.lastPollNanos = now;
+            gate.observedSequence = inputSequence;
+            gate.initialized = true;
+        }
+    }
+
+    private boolean hasPendingTransitionLocked() {
+        return !events.isEmpty()
+                || (currentEvent != null && !(currentPointObserved && currentButtonsObserved));
     }
 
     /**
@@ -303,7 +376,20 @@ public class MouseStatus extends MouseInputAdapter {
     }
 
     private void signalInput() {
+        synchronized (lock) {
+            inputSequence++;
+            lock.notifyAll();
+        }
         inputSignal.run();
+    }
+
+    /**
+     * Per-primitive poll rate limiter. Fields are guarded by {@link #lock}.
+     */
+    private static final class PollGate {
+        private boolean initialized;
+        private long lastPollNanos;
+        private long observedSequence;
     }
 
     public enum Type {

@@ -100,6 +100,7 @@
 |------|------|------|-----------|
 | `InputEventLatch` | 输入事件闩锁 | 单调事件计数/可消费唤醒，避免瞬时布尔标志丢失通知。 | `input/InputEventLatch.java` |
 | Mouse transition queue | 鼠标 transition 队列 | 记录按下/抬起转换，短点击不丢失。 | `input/MouseStatus.java` |
+| Poll throttle / `POLL_RATE_HZ` | 轮询限速 | MVC 空闲时把 Primitive 90/107 的轮询限制在 250Hz；鼠标事件立即唤醒。 | `MouseStatus.pollMousePoint()` / `pollMouseButtons()`、`ADR-0003` |
 | `cmd-.` / Alt+. | 中断键 | Squeak 中断键码 2094；触发 `interruptPending`。 | `doc/input-reliability.md` |
 | RuntimeStats | 运行时统计 | 原语调用/失败直方图、定时器延迟、输入队列、绘制耗时。 | `uilts/RuntimeStats.java` |
 | `UNIMPLEMENTED` | 未实现 | 没有实现分支或 TODO 导致的失败。 | `RuntimeStats.PrimitiveFailure` |

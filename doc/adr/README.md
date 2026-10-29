@@ -10,3 +10,4 @@ ADR（Architecture Decision Record）记录重要、难回退、跨模块的技�
 |----|------|------|
 | [ADR-0001](ADR-0001-documentation-workflow.md) | 采用 Issue → Design → ADR 文档流程 | accepted |
 | [ADR-0002](ADR-0002-test-image-storage-and-discovery.md) | 测试映像放在仓库外 `temp/test-images/` 并自动发现 | accepted |
+| [ADR-0003](ADR-0003-mouse-polling-throttle.md) | 将 MVC 空闲鼠标轮询限制在 250 Hz | accepted |

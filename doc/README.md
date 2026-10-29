@@ -1,6 +1,6 @@
 # DodoTalk 文档索引
 
-> 最后更新：2026-10-29
+> 最后更新：2026-10-30
 > 文档流程见 [ADR-0001](adr/ADR-0001-documentation-workflow.md)。
 
 ## 当前路线图
@@ -21,6 +21,10 @@
 | [ISSUE-0001](issues/ISSUE-0001-primitive-103-scan-characters.md) | Primitive 103 scanCharacters | done | [DESIGN-0001](design/DESIGN-0001-primitive-103-scan-characters.md) |
 | [ISSUE-0002](issues/ISSUE-0002-primitive-96-copybits-failures.md) | Primitive 96 copyBits 失败诊断与压缩 Form 回退 | done | [DESIGN-0002](design/DESIGN-0002-primitive-96-copybits-failures.md) |
 | [ISSUE-0003](issues/ISSUE-0003-primitive-96-tally-stack-underflow.md) | Primitive 96 tally 规则破坏 BlockContext home | done | [DESIGN-0003](design/DESIGN-0003-primitive-96-tally-stack-underflow.md) |
+| [ISSUE-0004](issues/ISSUE-0004-mvc-popup-polling-cpu.md) | 缺少 sources/changes 时 MVC 弹窗导致 CPU 满载 | done | [DESIGN-0004](design/DESIGN-0004-mvc-popup-polling-cpu.md) |
+
+当前 ADR：[ADR-0003](adr/ADR-0003-mouse-polling-throttle.md) 将 MVC 空闲鼠标
+轮询限制在 250Hz（关联 ISSUE-0004 / DESIGN-0004）。
 
 ## 模板
 

@@ -1,6 +1,6 @@
 # 运行时诊断统计
 
-> 日期：2026-10-24
+> 日期：2026-10-24（2026-10-30 增补 #107 轮询限速说明）
 > 对应 [plan.md](plan.md) Phase 1.6 任务 1.18
 > 实现：`org.dodotalk.uilts.RuntimeStats`
 
@@ -95,12 +95,18 @@ Gradle 中由 `-PsqueakStats=true` 转发。
   `home` 槽；`ISSUE-0003` 已改为按 `argCount + 1` 弹出。该修复不改变
   `#96` 的压缩 Form `FAILED` 统计，但消除了 `yTallyPixelValue:orNot:`
   第二次执行时的 `SqueakContextException`。
+- `#107` 在缺 sources/changes 的 MVC 弹窗期间曾达到约 460 万次/秒，导致
+  单核满。`ISSUE-0004` 后空闲轮询被限制在 250Hz；正常运行时约数百次/秒。
+  如果再次看到 `#107` 达到百万级，应检查 `MouseStatus.POLL_RATE_HZ` 和
+  `pollMouseButtons()` 是否被绕过。
 
 ## 5. 测试
 
 - `RuntimeStatsTest`：计数、分类、禁用状态、汇总格式、报告落盘。
 - `InterruptAndStatsTest`：真实 `SqueakVM` 注入启用统计，验证未实现/失败/故意失败分类。
 - `DisplayPrimitiveTest`：126 defer 标志、231/127/233/140 的 headless 行为。
+- `MousePollThrottleTest`：Primitive 90/107 空闲轮询限速、输入唤醒、正常帧率不延迟。
+- `StarterTest`：支持文件发现与缺失警告。
 - `CopyBitsTest`：普通复制、压缩 Form 失败路径，以及 rule 22/32 的 tally 栈效果。
 - 汇总输出不含线程/进程标识，便于测试断言。
 

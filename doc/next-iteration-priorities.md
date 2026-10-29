@@ -1,8 +1,8 @@
 # DodoTalk 下一迭代高优方向
 
-> 日期：2026-10-29（Primitive 96 诊断与 tally 栈修复完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（188 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断与 tally 栈修复已落地。
+> 日期：2026-10-30（MVC 弹窗轮询限速与支持文件提示完成后更新）
+> 依据：当前代码审查、`./gradlew clean test`（197 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](README.md) 与 [`ADR-0001`](adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 `input-reliability.md`、`runtime-diagnostics.md`、`rendering-review.md`、`archives/freeze-analysis-2026-10-24.md`。
 
@@ -11,12 +11,12 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 188 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径与 tally 栈效果、启动参数、测试映像发现 |
+| 测试 | 197 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标轮询限速、启动参数与支持文件警告、测试映像发现 |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz`；Primitive 97 可保存并重新加载 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
 | 显示 | 1/2/4/8/16/32 bpp；脏矩形合并/裁剪；defer/force 生效；233 明确失败 |
-| 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断 |
+| 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断；MVC 空闲鼠标轮询限制在 250Hz（ISSUE-0004） |
 | 诊断 | 原语调用/失败直方图与分类、定时器延迟、输入队列深度、绘制耗时；stdout + `logs/runtime-stats.log` |
 | 文件 | 150–160、162 已接线；`imageName`/`vmPath`/路径分隔符已修正 |
 | 工程化 | 无 CI（重要但低优先级）；无 GUI 自动化冒烟、无覆盖率门禁、无性能基线 |
@@ -75,6 +75,18 @@
   会在 0 参数 `copyBits` 时覆盖 BlockContext 的 home；已由
   `ISSUE-0003` / `DESIGN-0003` 修复并补充回归测试。
 
+### P1-2.5（已完成）：MVC 弹窗忙等导致 CPU 满载
+
+- 见 `ISSUE-0004` / `DESIGN-0004` / `ADR-0003`。
+- 缺少 `SqueakV2.sources` / `<image>.changes` 时，映像用
+  `[Sensor anyButtonPressed] whileFalse: []` 忙等；Primitive 107 被调用
+  约 460 万次/秒，单核 104%。
+- `MouseStatus` 对 Primitive 90/107 增加每原语 250Hz 空闲轮询门；鼠标事件
+  立即唤醒，pending transition 不等待。
+- `Starter`/启动器增加支持文件检查与警告；不屏蔽映像弹窗。
+- 实测缺文件时 104% → 7.8%–13%（含启动），107 约 233–247Hz；支持文件齐全时正常。
+- 新增 9 个测试（5 个轮询限速 + 4 个支持文件警告）。
+
 ### P1-3：全屏/窗口缩放/光标
 
 - Primitive 233 已明确失败，但全屏能力仍未实现。
@@ -111,6 +123,7 @@
 |------|------|----------|----------|
 | 1 | **已完成** Primitive 103 | 移植 scanner 状态与 `scanCharacters`；补合成对象测试 | 统计中 103 UNIMPLEMENTED 为 0；文本光标/扫描正常 |
 | 2 | **已完成** 96 `copyBits` 失败与 tally 栈效果 | 确认压缩 Form 回退；修正 rule 22/32 弹出个数 | 失败可解释；BlockContext home 不被覆盖 |
+| 2.5 | **已完成** MVC 弹窗轮询限速 | Primitive 90/107 空闲轮询限制 250Hz；支持文件警告 | 缺 sources/changes 时弹窗仍可用，CPU 不再满核 |
 | 3 | 全屏/缩放/光标决策 | 二选一：实现并 remap display，或明确固定尺寸并删除死代码 | 无假成功；文档写明策略 |
 | 4 | 快照交叉验证 | 用原版 Squeak 2.2 打开 DodoTalk 快照；评估 raw `.image` 支持 | 至少一个快照可被原版打开，或记录明确阻塞点 |
 | 5 | 原语测试网 | 正常 + 失败路径；default 行为回归 | 新增原语有测试兜底 |
@@ -131,10 +144,10 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 188；
+4. `./gradlew clean test` 全绿，测试数不低于当前 197；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论
 
-96 与 103 已完成，接下来处理 **全屏/缩放/光标策略**，
+96、103 与 MVC 弹窗轮询限速已完成，接下来处理 **全屏/缩放/光标策略**，
 同时做快照交叉验证和原语测试网；CI 与声音/网络继续后置。

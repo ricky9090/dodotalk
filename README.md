@@ -118,6 +118,10 @@ With the improvements in DodoTalk, it can load and run a full Squeak 2.2 image s
 * Reliable input wakeups and click handling: a monotonic event latch replaces the
   fragile transient wakeup flag, mouse press/release transitions are queued, and
   keyboard/mouse events wake the VM immediately.
+* MVC idle mouse polling is capped at 250 Hz (`Sensor` primitives 90/107), so the
+  Squeak 2.2 missing-sources/changes popup no longer pegs a CPU core. Missing
+  `SqueakV2.sources` / `.changes` files are also reported before boot in the log
+  and launcher; see `ISSUE-0004` / `ADR-0003`.
 * Bounded interrupt/timer feedback, wired file primitives, platform image/vm paths,
   and a Java implementation of compressed-bitmap decompression (primitive 234);
   these remove the multi-second UI stalls and changes-file error dialogs.

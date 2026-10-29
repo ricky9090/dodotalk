@@ -29,6 +29,8 @@ import org.dodotalk.uilts.SqueakLogger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class Starter {
@@ -44,6 +46,9 @@ public class Starter {
     public static SqueakVM load(File imageFile) throws IOException {
         File file = validateImageFile(imageFile);
         SqueakLogger.log_I("Load image from: " + file);
+        for (String warning : supportFileWarnings(file)) {
+            SqueakLogger.log_W(warning);
+        }
         SqueakImage image = new SqueakImage(file);
         SqueakVM vm = new SqueakVM(image);
         SqueakVM.INSTANCE = vm;
@@ -107,6 +112,41 @@ public class Starter {
             name = name.substring(0, dot);
         }
         return new File(absolute.getParentFile(), name + ".changes");
+    }
+
+    /**
+     * Squeak looks for the shared sources file next to the image (its
+     * {@code vmPath}).
+     */
+    static File sourcesFileFor(File imageFile) {
+        return new File(imageFile.getAbsoluteFile().getParentFile(), "SqueakV2.sources");
+    }
+
+    /**
+     * Returns non-fatal warnings for the optional Squeak support files.
+     * <p>
+     * The VM can boot without them, but source browsing/debugger source
+     * display and change logging are unavailable. Warning before the image
+     * runs makes the image's own MVC popup much easier to understand.
+     */
+    public static List<String> supportFileWarnings(File imageFile) {
+        List<String> warnings = new ArrayList<>();
+        if (imageFile == null) {
+            return warnings;
+        }
+
+        File sources = sourcesFileFor(imageFile);
+        if (!sources.isFile() || !sources.canRead()) {
+            warnings.add("SqueakV2.sources not found or unreadable at " + sources
+                    + "; source browsing and debugger source display will be unavailable.");
+        }
+
+        File changes = changesFileFor(imageFile);
+        if (!changes.isFile() || !changes.canRead()) {
+            warnings.add("Changes file not found or unreadable at " + changes
+                    + "; change logging and change-set browsing will be unavailable.");
+        }
+        return warnings;
     }
 
     /**

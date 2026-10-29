@@ -95,7 +95,7 @@ primitiveYield:     while (!screenEvent) wait(100ms)
 ./gradlew clean test
 ```
 
-当前结果：156 个测试全部通过（2026-10-24）。
+当前结果：197 个测试全部通过（2026-10-30；Phase 1.5 验收时为 111，Sprint 2 后为 156，ISSUE-0004 后为 197）。
 
 ## 4. 人工验收结果
 
@@ -142,4 +142,43 @@ primitiveYield:     while (!screenEvent) wait(100ms)
 
 > 自动化测试已覆盖键码、队列消费、`interruptPending`、`checkForInterrupts`；
 > 真实窗口验收确认了 AWT 焦点/键盘路径。若后续复现失败，按新缺陷处理并更新本节。
+
+## 7. MVC 空闲鼠标轮询限速（2026-10-30）
+
+### 7.1 问题
+
+缺少 `SqueakV2.sources` / `<image>.changes` 时，Squeak 2.2 的
+`PopUpMenu notify:` 会在 MVC 模式下执行：
+
+```smalltalk
+[Sensor anyButtonPressed] whileFalse: []
+```
+
+`Sensor anyButtonPressed` 调用 Primitive 107，DodoTalk 原实现立即返回，导致
+该循环每秒执行约 460 万次，单核 CPU 104%。同类忙等还出现在 `waitButton`、
+`waitNoButton` 和 MVC 菜单跟踪中。
+
+### 7.2 设计
+
+`MouseStatus` 为 Primitive 90（point）和 107（buttons）各维护一个
+`PollGate`：
+
+- 同一原语的两次空闲轮询至少间隔 4ms，即最多 **250Hz**；
+- 鼠标事件递增 `inputSequence` 并 `notifyAll()`，等待中的轮询立即返回；
+- 有 pending transition 时不等待，保持 point/buttons 配对；
+- 正常 30–50 fps 事件循环的调用间隔远大于 4ms，不触发等待；
+- `peekMousePoint()` / `consumeButtons()` 保持原语义，新的
+  `pollMousePoint()` / `pollMouseButtons()` 供 `Screen` 的原语路径使用。
+
+250Hz 参考当前高端手机：120Hz 屏幕下触控采样通常为 120–240Hz（240Hz 最常见），
+游戏手机为 480–720Hz。详见 `ISSUE-0004` / `DESIGN-0004` / `ADR-0003`。
+
+### 7.3 验证
+
+- `MousePollThrottleTest`：空闲 107 轮询被限制在 250Hz 附近；50fps 节奏不延迟；
+  point/buttons gate 独立；鼠标按下立即唤醒；pending transition 不被限速拖延。
+- 真实窗口缺文件：CPU 104% → 7.8%–13%（含启动），107 3,500–4,203 次 /
+  15–17s（约 233–247Hz）。
+- 支持文件齐全：107 1,555 次 / 15s，输入/绘制正常。
+- `Starter`/启动器会提示缺失的支持文件，但不屏蔽映像自身的提示框。
 

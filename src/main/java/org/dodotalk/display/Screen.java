@@ -488,15 +488,17 @@ public class Screen {
      * current mouse point when no transition is queued
      */
     public Point peekMousePoint() {
-        return fMouseStatus.peekMousePoint();
+        return fMouseStatus.pollMousePoint();
     }
 
     /**
      * Consumes one queued press/release transition. When the queue is empty,
      * the current physical button state is returned so drag polling works.
+     * Idle polls are capped by {@link MouseStatus#POLL_RATE_HZ}; mouse input
+     * wakes a waiting poll immediately.
      */
     public int consumeMouseButtons() {
-        return (fMouseStatus.consumeButtons() & 7) | fKeyboardQueue.modifierKeys();
+        return (fMouseStatus.pollMouseButtons() & 7) | fKeyboardQueue.modifierKeys();
     }
 
     public Point getLastMousePoint() {

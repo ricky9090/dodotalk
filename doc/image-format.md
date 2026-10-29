@@ -1,6 +1,6 @@
 # 映像格式与 gzip 封装
 
-> 日期：2026-10-24
+> 日期：2026-10-24（2026-10-30 增补缺少 sources/changes 的支持文件提示）
 > 适用范围：`SqueakImage`、Primitive 97、`save` / `save as`、启动参数 `-image`
 
 ## 1. 结论
@@ -38,6 +38,12 @@ Squeak 2.2 的映像格式和命名规则只要求：
 - Primitive 97 覆盖所选 image 前会保留 `<name>.bak`。
 
 `vmPath` 指向所选 image 的父目录，因此用户放在同目录的 `SqueakV2.sources` 和匹配的 `.changes` 会被 Squeak 找到。仓库不再复制任何 sources/changes。
+
+缺少这些可选文件不会阻止启动，但 Squeak 2.2 会弹出 MVC 提示框，且源码浏览/
+调试器源码显示/变更记录不可用。DodoTalk 在 `Starter.load()` 中通过
+`supportFileWarnings()` 输出 `[W]` 警告，启动器也会显示支持文件状态；映像
+弹窗本身保留，但空闲鼠标轮询已限制在 250Hz，不会再打满 CPU（见
+`ISSUE-0004` / `ADR-0003`）。
 
 运行时目录布局：
 
@@ -126,6 +132,7 @@ ScreenController>>saveAs
   - 图像选择、`.image.gz` 过滤、后台启动 VM
 - `src/main/java/org/dodotalk/Starter.java`
   - `validateImageFile()`、`load()`、`boot(File)`
+  - `changesFileFor()`、`sourcesFileFor()`、`supportFileWarnings()`
 - `src/main/java/org/dodotalk/core/SqueakImage.java`
   - `loaded()`：gzip 读取
   - `save()` / `writeCompressedImage()`：gzip 写入

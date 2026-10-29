@@ -21,6 +21,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.prefs.Preferences;
 
@@ -41,6 +42,7 @@ public final class LauncherFrame extends JFrame {
     private final JButton startButton = new JButton("Start");
     private final JButton quitButton = new JButton("Quit");
     private final JLabel statusLabel = new JLabel(" ");
+    private final JLabel supportLabel = new JLabel(" ");
 
     private boolean busy;
 
@@ -86,7 +88,10 @@ public final class LauncherFrame extends JFrame {
                 + "Snapshots are written next to the selected image; the previous "
                 + "image is kept as <code>.bak</code>."
                 + "</html>");
-        content.add(notice, BorderLayout.CENTER);
+        JPanel noticePanel = new JPanel(new BorderLayout(0, 6));
+        noticePanel.add(notice, BorderLayout.NORTH);
+        noticePanel.add(supportLabel, BorderLayout.CENTER);
+        content.add(noticePanel, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(8, 0));
         bottom.add(statusLabel, BorderLayout.CENTER);
@@ -191,6 +196,38 @@ public final class LauncherFrame extends JFrame {
 
     private void updateStartState() {
         startButton.setEnabled(!busy && !imageField.getText().trim().isEmpty());
+        updateSupportFileState();
+    }
+
+    /**
+     * Shows, before boot, whether the optional Squeak support files are
+     * available. The VM can still start without them, but source browsing and
+     * change logging will be unavailable.
+     */
+    private void updateSupportFileState() {
+        String text = imageField.getText().trim();
+        if (text.isEmpty()) {
+            supportLabel.setText(" ");
+            supportLabel.setToolTipText(null);
+            return;
+        }
+
+        File selected = new File(text);
+        if (!selected.isFile()) {
+            supportLabel.setText(" ");
+            supportLabel.setToolTipText(null);
+            return;
+        }
+
+        List<String> warnings = Starter.supportFileWarnings(selected);
+        if (warnings.isEmpty()) {
+            supportLabel.setText("SqueakV2.sources and changes file found.");
+            supportLabel.setToolTipText(null);
+        } else {
+            supportLabel.setText("Warning: optional Squeak support file(s) missing "
+                    + "(hover for details).");
+            supportLabel.setToolTipText(String.join("\n", warnings));
+        }
     }
 
     private File initialDirectory() {
