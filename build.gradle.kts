@@ -56,7 +56,7 @@ tasks.withType<JavaCompile>().configureEach {
 // Guard against accidentally committing Squeak images or support files.
 // Development images should live outside the repository (../temp/test-images/).
 // This check remains as a safety net even though in-project temp/ is not used
-// for test images. See doc/test-images.md and ADR-0002.
+// for test images. See doc/guides/test-images.md and ADR-0002.
 tasks.register("checkNoSqueakImages") {
     group = "verification"
     description = "Verify that no Squeak image/support files are tracked by git."
@@ -102,7 +102,7 @@ tasks.named("check") {
 
 // Developer diagnostics for user-supplied images. The tool lives in the
 // test source set so it can inspect package-private VM state without
-// becoming part of the production API. See doc/image-inspector.md.
+// becoming part of the production API. See doc/guides/image-inspector.md.
 tasks.register<JavaExec>("inspectImage") {
     group = "diagnostics"
     description = "Inspect a Squeak image object graph (developer tool)."

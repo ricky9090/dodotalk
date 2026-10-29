@@ -93,7 +93,7 @@
 
 ### 目标
 
-把已修好的能力纳入本地回归，修复确定性错误，确保映像保存不丢数据，补上中断逃生通道和运行时诊断。详细依据见 `next-iteration-priorities.md`。
+把已修好的能力纳入本地回归，修复确定性错误，确保映像保存不丢数据，补上中断逃生通道和运行时诊断。详细依据见 [下一迭代高优方向](next-iteration-priorities.md)。
 
 ### 任务清单
 
@@ -184,7 +184,7 @@
 | 3.3 | 声音原语核心集（170/172/174） | `primitives/SoundPrimitives.java` | `SoundPlayer` 可播放简单采样 |
 | 3.4 | 文件原语完善 | `core/FileSystemPrimitives.java` | 支持非 SmallInt 位置/大小，支持非字节数组 |
 | 3.5 | 网络原语骨架（200-229） | `primitives/NetworkPrimitives.java` | Socket create/connect/read/write 基础通路通 |
-| 3.6 | 原版 Squeak 映像格式兼容 | `core/SqueakImage.java` | 支持 raw `.image` / gzip 双格式读写与 magic sniffing；与原版 Squeak 2.2 交叉验证；见 `doc/image-format.md` |
+| 3.6 | 原版 Squeak 映像格式兼容 | `core/SqueakImage.java` | 支持 raw `.image` / gzip 双格式读写与 magic sniffing；与原版 Squeak 2.2 交叉验证；见 [映像格式规范](../specifications/image/image-format.md) / [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md) |
 
 ### 产出
 - 完整的原语分类包
@@ -260,7 +260,7 @@ Week 24+   : Phase 5 按需推进
 |------|------|------|
 | 大规模重构引入回归 | 高 | Phase 1 先建完整测试网，每次重构跑全量测试 |
 | 输入同步修复引入死锁或额外延迟 | 高 | 使用有界等待和单调事件计数；避免 VM 线程与 EDT 相互持锁等待；增加输入压力测试 |
-| 原语实现逻辑与 Squeak 语义不符 | 中 | 对照 `primitive-table.md` 和 Squeak 2.2 源码逐个验证 |
+| 原语实现逻辑与 Squeak 语义不符 | 中 | 对照 `doc/specifications/vm/primitive-table.md` 和 Squeak 2.2 源码逐个验证 |
 | `WeakReference` GC 时序不可控导致测试不稳定 | 中 | 测试中显式 `System.gc()` + 等待，或用 `ReferenceQueue` 同步 |
 | 现有预编译 `.class` 与源码不一致 | 低 | Phase 1 引入 Gradle 后删除 `out/`，强制全源码编译 |
 

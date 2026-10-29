@@ -94,7 +94,7 @@ Potato 利用 Java 的 `java.math.BigInteger` 实现 Squeak 的大整数原语�
 
 **本项目现状：**
 
-`SqueakPrimitiveHandler` 中 20–39 全部按 Squeak 2.2 的 `primitiveFail` 处理；大整数运算会回退到 image 内的 Smalltalk 实现。`doc/next-iteration-priorities.md` 也明确将 20–39 标记为“在 Squeak 2.2 里就是 primitiveFail，不要按缺陷追”。
+`SqueakPrimitiveHandler` 中 20–39 全部按 Squeak 2.2 的 `primitiveFail` 处理；大整数运算会回退到 image 内的 Smalltalk 实现。`doc/plans/next-iteration-priorities.md` 也明确将 20–39 标记为“在 Squeak 2.2 里就是 primitiveFail，不要按缺陷追”。
 
 **注意：这不是规范差异，而是 Potato 的性能扩展。** 如果 image 中的方法声明了这些 primitive，它们会生效；如果未声明，则不会产生副作用。移植时仍应保留 primitive 失败后的 Smalltalk 回退路径。
 
@@ -170,7 +170,7 @@ Potato 实现了 Squeak 的直线绘制循环：沿 x/y 方向逐步执行 `copy
 
 **本项目现状：**
 
-`SqueakPrimitiveHandler` 没有 104 分支；`doc/next-iteration-priorities.md` 将 104 列为低优先级待补原语。
+`SqueakPrimitiveHandler` 没有 104 分支；`doc/plans/next-iteration-priorities.md` 将 104 列为低优先级待补原语。
 
 **Potato 实现的 bug：**
 
@@ -232,7 +232,7 @@ GZIPInputStream gz = new GZIPInputStream(fp);
 DataInputStream ser = new DataInputStream(gz);
 ```
 
-因此不能直接加载标准未压缩 `.image`。仓库中虽然存在 `mini.image`、`squeak22.image` 等 raw 资源，但当前加载路径不会使用它们。`doc/image-format.md` 也明确记录“raw 读取/写入未实施”。
+因此不能直接加载标准未压缩 `.image`。仓库中虽然存在 `mini.image`、`squeak22.image` 等 raw 资源，但当前加载路径不会使用它们。`doc/specifications/image/image-format.md` 也明确记录“raw 读取/写入未实施”。
 
 **结论：** 这是 Potato 在兼容性上的真实优势。不过 Potato 用后缀判断而不是 magic number，命名不规范的 gzip 文件会误判。本项目实现时应改用 `1f 8b` magic sniffing，并分别提供 raw/gzip 写入路径。
 
@@ -442,7 +442,7 @@ Potato 的 `SqueakImageInputStream` 支持 raw/gz 和端序检测，这是它的
 4. **raw `.image` 读取/写入**
    - 用 gzip magic `1f 8b` 判断，而不是只看后缀；
    - `.image` 写 raw，`.gz` 写 gzip；
-   - 这与 `doc/image-format.md` 的 P1-4 完全一致。
+   - 这与 `doc/specifications/image/image-format.md` 的 P1-4 完全一致。
 
 ### P2：可选增强
 
@@ -460,7 +460,7 @@ Potato 的 `SqueakImageInputStream` 支持 raw/gz 和端序检测，这是它的
 
 ### 对路线图的提醒
 
-`doc/next-iteration-priorities.md` 目前将 20–39 标记为“Squeak 2.2 里就是 primitiveFail，不要按缺陷追”。这从**规范兼容**角度是正确的，但 Potato 的 LargeInteger 实验说明：如果目标是性能，20–39 仍然值得实现。建议在路线图中明确区分“规范要求”与“性能扩展”，避免后续 Agent 把 Potato 的 LargeInteger 实现误判为错误或遗漏。
+`doc/plans/next-iteration-priorities.md` 目前将 20–39 标记为“Squeak 2.2 里就是 primitiveFail，不要按缺陷追”。这从**规范兼容**角度是正确的，但 Potato 的 LargeInteger 实验说明：如果目标是性能，20–39 仍然值得实现。建议在路线图中明确区分“规范要求”与“性能扩展”，避免后续 Agent 把 Potato 的 LargeInteger 实现误判为错误或遗漏。
 
 ---
 
@@ -521,8 +521,8 @@ Potato 的 `SqueakImageInputStream` 支持 raw/gz 和端序检测，这是它的
 - `src/main/java/org/dodotalk/input/InputEventLatch.java`、`MouseStatus.java`、`KeyboardQueue.java`：输入可靠性。
 - `src/main/java/org/dodotalk/core/FileSystemPrimitives.java`：文件原语。
 - `src/main/java/org/dodotalk/uilts/RuntimeStats.java`：运行时诊断。
-- `doc/image-format.md`：raw/gzip 兼容计划。
-- `doc/next-iteration-priorities.md`：当前路线图。
+- `doc/specifications/image/image-format.md`：raw/gzip 兼容计划。
+- `doc/plans/next-iteration-priorities.md`：当前路线图。
 
 ---
 

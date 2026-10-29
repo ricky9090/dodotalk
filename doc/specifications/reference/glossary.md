@@ -1,6 +1,7 @@
 # DodoTalk 术语词典
 
-> 最后更新：2026-10-29
+> 状态：current
+> 最后更新：2026-10-30
 >
 > 目的：统一代码、Issue/Design、日志和人工讨论中的术语含义。新增原语、字节码、
 > 绘制路径或诊断字段时，如果引入新名词，请同步补充本文件。
@@ -13,7 +14,7 @@
 |------|------|------|-----------|
 | VM | 虚拟机 | 执行 Squeak 字节码、管理对象内存和原语的运行时。 | `core/SqueakVM.java` |
 | Interpreter | 解释器 | 逐条取字节码并分派的执行循环。 | `SqueakVM.run()` |
-| Bytecode | 字节码 | Squeak 方法中的紧凑指令，0–255 映射到执行器。 | `doc/bytecode-table.md` |
+| Bytecode | 字节码 | Squeak 方法中的紧凑指令，0–255 映射到执行器。 | `doc/specifications/vm/bytecode-table.md` |
 | Primitive | 原语 | 由 VM 用 Java 实现的“内建方法”；方法头中的 primitive index 选择。 | `core/SqueakPrimitiveHandler.java` |
 | `primitiveFail` | 原语失败 | 原语拒绝执行；VM 回退解释同一个 Smalltalk 方法体。 | `doPrimitive()` |
 | `doesNotUnderstand:` | 未理解消息 | 方法查找失败后的 Smalltalk 级错误路径。 | `SqueakVM.send()` |
@@ -37,8 +38,8 @@
 | 术语 | 中文 | 说明 | 代码/文档 |
 |------|------|------|-----------|
 | Image | 映像 | Squeak 的完整对象内存快照，包含类、方法、对象和运行状态。 | `core/SqueakImage.java` |
-| `.image.gz` | gzip 映像 | DodoTalk 当前支持的 gzip 压缩映像文件。 | `doc/image-format.md` |
-| `SqueakV2.sources` | 源码文件 | Squeak 方法的源码文本；由 `vmPath` 指向的目录查找。 | `doc/image-format.md` |
+| `.image.gz` | gzip 映像 | DodoTalk 当前支持的 gzip 压缩映像文件。 | `doc/specifications/image/image-format.md` |
+| `SqueakV2.sources` | 源码文件 | Squeak 方法的源码文本；由 `vmPath` 指向的目录查找。 | `doc/specifications/image/image-format.md` |
 | `.changes` | 变更日志 | Squeak 记录代码修改/变更集的文件。 | `SqueakImage.changesFileFor()` |
 | `vmPath` | VM 路径 | Squeak 运行目录；DodoTalk 使用所选 image 的父目录。 | `SqueakImage.runtimeDirectory()` |
 | Snapshot | 快照/保存 | Primitive 97 把当前对象内存写回映像。 | `primitiveSnapshot()` |
@@ -57,7 +58,7 @@
 | `destForm` | 目标 Form | 接收像素的 Form；Display 是特殊的 destForm。 | BitBlt 字段 0 |
 | `sourceForm` | 源 Form | 提供像素的 Form；可为 nil（纯填充）。 | BitBlt 字段 1 |
 | `halftoneForm` | 半色调/网纹 Form | 填充图案或旧式 32xN 单色网纹；与源/目标按组合规则混合。 | BitBlt 字段 2 |
-| `combinationRule` | 组合规则 | 0–41 的像素操作码；决定覆盖、反转、擦除、alpha、tally 等。 | `doc/bb-operation-table.md` |
+| `combinationRule` | 组合规则 | 0–41 的像素操作码；决定覆盖、反转、擦除、alpha、tally 等。 | `doc/specifications/vm/bitblt-operation-table.md` |
 | `destX` / `destY` | 目标 X/Y | 目标 Form 中的像素起点（不是字节/word 索引）。 | BitBlt 字段 4/5 |
 | `width` / `height` | 宽/高 | 本次 BitBlt 要复制的像素范围。 | BitBlt 字段 6/7 |
 | `sourceX` / `sourceY` | 源 X/Y | 源 Form 中取像素的起点。 | BitBlt 字段 8/9 |
@@ -72,8 +73,8 @@
 | Form depth | Form 深度 | 每像素位数：1/2/4/8/16/32 bpp。 | `FormCache.depth` |
 | `bitCount` | 位计数 | tally 规则累计的差异位数/像素数。 | `BitBlt.bitCount` |
 | Tally | 统计/计数 | BitBlt 规则 22/32 不做普通绘制，而是把差异累计到 `bitCount`。 | `Form>>xTallyPixelValue:orNot:`、`yTallyPixelValue:orNot:` |
-| Rule 22 | `OLDrgbDiff` | 旧式 RGB 差异统计规则，返回差异计数。 | `doc/bb-operation-table.md` |
-| Rule 32 | `rgbDiff` | 新式 RGB 差异统计规则，返回差异计数。 | `doc/bb-operation-table.md` |
+| Rule 22 | `OLDrgbDiff` | 旧式 RGB 差异统计规则，返回差异计数。 | `doc/specifications/vm/bitblt-operation-table.md` |
+| Rule 32 | `rgbDiff` | 新式 RGB 差异统计规则，返回差异计数。 | `doc/specifications/vm/bitblt-operation-table.md` |
 | WarpBlt | 变形 BitBlt | 支持旋转/缩放四边形的 BitBlt 变体；DodoTalk 仅部分支持。 | `BitBlt.isWarping` |
 | FormCache | Form 缓存 | 缓存 Form 的 bits/width/height/depth/pitch，避免每次 BitBlt 重新解析。 | `SqueakVM.FormCache` |
 | Dirty region | 脏矩形 | 需要重绘的屏幕区域；`Screen` 合并/裁剪后只重绘这些区域。 | `display/DirtyRegion.java` |
@@ -101,7 +102,7 @@
 | `InputEventLatch` | 输入事件闩锁 | 单调事件计数/可消费唤醒，避免瞬时布尔标志丢失通知。 | `input/InputEventLatch.java` |
 | Mouse transition queue | 鼠标 transition 队列 | 记录按下/抬起转换，短点击不丢失。 | `input/MouseStatus.java` |
 | Poll throttle / `POLL_RATE_HZ` | 轮询限速 | MVC 空闲时把 Primitive 90/107 的轮询限制在 250Hz；鼠标事件立即唤醒。 | `MouseStatus.pollMousePoint()` / `pollMouseButtons()`、`ADR-0003` |
-| `cmd-.` / Alt+. | 中断键 | Squeak 中断键码 2094；触发 `interruptPending`。 | `doc/input-reliability.md` |
+| `cmd-.` / Alt+. | 中断键 | Squeak 中断键码 2094；触发 `interruptPending`。 | `doc/specifications/runtime/input-model.md` |
 | RuntimeStats | 运行时统计 | 原语调用/失败直方图、定时器延迟、输入队列、绘制耗时。 | `uilts/RuntimeStats.java` |
 | `UNIMPLEMENTED` | 未实现 | 没有实现分支或 TODO 导致的失败。 | `RuntimeStats.PrimitiveFailure` |
 | `FAILED` | 实现失败 | 原语实现了但拒绝参数/状态。 | 同上 |
@@ -113,8 +114,8 @@
 | 术语 | 中文 | 说明 | 代码/文档 |
 |------|------|------|-----------|
 | `TestImages` | 测试映像发现 | 从环境变量或 `../temp/test-images/` 查找用户提供的测试 image。 | `src/test/java/org/dodotalk/TestImages.java` |
-| `JSQUEAK_TEST_*` | 测试映像环境变量 | `JSQUEAK_TEST_MINI_IMAGE` / `JSQUEAK_TEST_FULL_IMAGE`。 | `doc/test-images.md` |
-| `ImageInspector` | 映像检查器 | 开发者工具：扫描对象图、反向引用、上下文、发送 0 参数消息。 | `doc/image-inspector.md` |
+| `JSQUEAK_TEST_*` | 测试映像环境变量 | `JSQUEAK_TEST_MINI_IMAGE` / `JSQUEAK_TEST_FULL_IMAGE`。 | `doc/guides/test-images.md` |
+| `ImageInspector` | 映像检查器 | 开发者工具：扫描对象图、反向引用、上下文、发送 0 参数消息。 | `doc/guides/image-inspector.md` |
 | `inspectImage` | 检查任务 | Gradle 任务，运行 `ImageInspector`。 | `build.gradle.kts` |
 
 ## 7. 维护规则

@@ -1,5 +1,7 @@
 # Java 绘制层审查
 
+> 状态：历史快照（2026-10-24）。当前显示契约见
+> [显示模型规范](../specifications/runtime/display-model.md)。
 > 日期：2026-10-24
 > 范围：`Screen`、`ScreenUtils`、`SqueakPrimitiveHandler` 显示原语、`BitBlt`、`SqueakVM.FormCache`
 

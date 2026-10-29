@@ -82,8 +82,8 @@ Primitive 107 立即返回，导致 VM 主线程在用户点击 OK 之前一直�
 - [x] 启动器在选择映像后显示支持文件状态。
 - [x] `./gradlew clean test` 全绿，测试数 197（新增 5 个鼠标限速测试 + 4 个
       支持文件警告测试）。
-- [x] 更新 `doc/README.md`、Issue/Design/ADR 索引、`plan.md`、
-      `next-iteration-priorities.md`、`AGENTS.md`、`README.md`、输入/诊断/格式文档。
+- [x] 更新 `doc/README.md`、Issue/Design/ADR 索引、`doc/plans/plan.md`、
+      `plans/next-iteration-priorities.md`、`AGENTS.md`、`README.md`、输入/诊断/格式文档。
 
 ## 4. 约束、风险与版权
 
@@ -156,8 +156,8 @@ B 解决“为什么弹窗”的可诊断性；A 解决 CPU，两者不互相替
 - [ISSUE-0003](ISSUE-0003-primitive-96-tally-stack-underflow.md)
 - `doc/design/DESIGN-0004-mvc-popup-polling-cpu.md`
 - `doc/adr/ADR-0003-mouse-polling-throttle.md`
-- `doc/input-reliability.md`
-- `doc/runtime-diagnostics.md`
+- `doc/specifications/runtime/input-model.md`
+- `doc/specifications/runtime/diagnostics.md`
 - Squeak 2.2 `PopUpMenu>>startUpWithCaption:at:`、`InputSensor>>waitButton`
 
 ## 9. 实施记录

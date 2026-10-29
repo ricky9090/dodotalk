@@ -76,7 +76,7 @@ vm.popNandPush(2, InterpreterHelper.smallFromInt(bitbltTable.bitCount));
       home 保持不变，不抛 `SqueakContextException`。
 - [x] 通过程序化发送 `StandardSystemController>>expand` 复现路径验证不再崩溃。
 - [x] `./gradlew clean test` 全绿，测试数不低于当前 187。
-- [x] 更新 `doc/README.md`、`next-iteration-priorities.md`、`plan.md`、
+- [x] 更新 `doc/README.md`、`doc/plans/next-iteration-priorities.md`、`doc/plans/plan.md`、
       `AGENTS.md` 中受影响的状态。
 
 ## 4. 约束、风险与版权

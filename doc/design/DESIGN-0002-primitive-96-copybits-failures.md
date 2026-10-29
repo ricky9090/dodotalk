@@ -175,8 +175,8 @@ primitiveCopyBits
 2. `BitBlt`：压缩 halftone 类型检查与失败原因。
 3. 新增 `CopyBitsTest` 合成对象用例。
 4. full image 复现并记录原因。
-5. 更新 `doc/README.md`、`runtime-diagnostics.md`、`next-iteration-priorities.md`、
-   `plan.md`、`AGENTS.md`（如状态受影响）。
+5. 更新 `doc/README.md`、`doc/specifications/runtime/diagnostics.md`、`doc/plans/next-iteration-priorities.md`、
+   `plans/plan.md`、`AGENTS.md`（如状态受影响）。
 
 ## 9. 风险与未决问题
 

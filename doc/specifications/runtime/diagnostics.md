@@ -1,8 +1,12 @@
-# 运行时诊断统计
+# DodoTalk 运行时诊断规范
 
-> 日期：2026-10-24（2026-10-30 增补 #107 轮询限速说明）
-> 对应 [plan.md](plan.md) Phase 1.6 任务 1.18
-> 实现：`org.dodotalk.uilts.RuntimeStats`
+| 字段 | 值 |
+|------|----|
+| 状态 | current |
+| 适用代码 | `uilts/RuntimeStats`、`SqueakPrimitiveHandler`、`SqueakVM`、`Screen` |
+| 启用方式 | `-PsqueakStats=true` / `-Dsqueak.stats=true` |
+| 最后核对 | 2026-10-30 |
+| 计划来源 | [维护改进执行计划](../../plans/plan.md) Phase 1.6 任务 1.18 |
 
 ## 1. 目标
 
@@ -55,7 +59,7 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 
 ## 4. 输出示例
 
-以下来自 2026-10-24 本机运行 `squeak22.image.gz`（Sprint 2 后，约 19 秒）：
+以下为一次典型运行输出（`squeak22.image.gz`，约 19 秒）：
 
 ```text
 [I]==== DodoTalk runtime statistics ====
@@ -79,26 +83,23 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 
 解读：
 
-- `#103 primitiveScanCharacters`（`Text` 光标/扫描字符路径）已于 2026-10-27 实现
-  （见 `ISSUE-0001` / `DESIGN-0001`）；当前统计中 UNIMPLEMENTED 为 0，启动期少量
-  FAILED 来自压缩 source form 的延迟解压，与 `#96` 同源。
+- `#103 primitiveScanCharacters`（`Text` 光标/扫描字符路径）当前 UNIMPLEMENTED 为 0；
+  启动期少量 FAILED 来自压缩 source form 的延迟解压，与 `#96` 同源
+  （见 `ISSUE-0001` / `DESIGN-0001`）。
 - `#2 primitiveSubtract` 的失败大多来自 SmallInteger 溢出后回退到 LargeInteger/Smalltalk 路径，
   属于预期行为；应与“未实现”区分。
 - `#65 next`、`#66 nextPut`、`#67 atEnd`、`#235 string compare` 已实现，不再出现在未实现清单。
-- `#96 copyBits` 的少量 FAILED 已于 2026-10-29 复现（见 `ISSUE-0002` /
-  `DESIGN-0002`）：全部来自压缩 source/destination Form。原语失败后，
+- `#96 copyBits` 的少量 FAILED 来自压缩 source/destination Form
+  （见 `ISSUE-0002` / `DESIGN-0002`）。原语失败后，
   映像 `BitBlt>>copyBits` 会 `unhibernate` 并重试，属于 Squeak 2.2 的预期
   回退，不是 BitBlt 参数错误。开启 `-PsqueakDebug=true` 可看到
   `primitive 96: ... (possibly compressed bits)`。保留 `FAILED` 分类，
   以免掩盖未来真正的 96 错误。
-- Primitive 96 的 rule 22/32 原先把 tally 结果误写到 BlockContext 的
-  `home` 槽；`ISSUE-0003` 已改为按 `argCount + 1` 弹出。该修复不改变
-  `#96` 的压缩 Form `FAILED` 统计，但消除了 `yTallyPixelValue:orNot:`
-  第二次执行时的 `SqueakContextException`。
-- `#107` 在缺 sources/changes 的 MVC 弹窗期间曾达到约 460 万次/秒，导致
-  单核满。`ISSUE-0004` 后空闲轮询被限制在 250Hz；正常运行时约数百次/秒。
-  如果再次看到 `#107` 达到百万级，应检查 `MouseStatus.POLL_RATE_HZ` 和
-  `pollMouseButtons()` 是否被绕过。
+- Primitive 96 的 rule 22/32 按 `argCount + 1` 弹出（`ISSUE-0003`），不会覆盖
+  BlockContext 的 `home` 槽；该修复不改变 `#96` 的压缩 Form `FAILED` 统计。
+- `#107` 在缺 sources/changes 的 MVC 弹窗期间会被限制在 250Hz 左右
+  （`ISSUE-0004`）；正常运行时约数百次/秒。如果看到 `#107` 达到百万级，
+  应检查 `MouseStatus.POLL_RATE_HZ` 和 `pollMouseButtons()` 是否被绕过。
 
 ## 5. 测试
 
@@ -110,27 +111,22 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 - `CopyBitsTest`：普通复制、压缩 Form 失败路径，以及 rule 22/32 的 tally 栈效果。
 - 汇总输出不含线程/进程标识，便于测试断言。
 
-## 6. 人工验收结果（2026-10-24）
+## 6. 验证要点
 
-`cmd-.` 在真实窗口中已确认通过。
+自动化和真实窗口验证应覆盖：
 
-1. `./gradlew run -PsqueakStats=true`
-2. 在 Squeak 工作区执行一个忙循环（例如 `[true] whileTrue`）。
-3. 按 `Alt+.`（Linux 的 cmd-. 映射）。
-4. 预期：出现中断/调试器，且不会在文本中留下 `.` 字符。
-5. 关闭**主 Squeak 窗口**（不是只关闭中断提示框），终端出现统计汇总，
-   同时生成 `logs/runtime-stats.log`；`intentional` 不计入 top-N。
-6. 在 Workspace 执行 `Sensor setInterruptKey: 120`（或等价原语 133 调用）后，
-   确认 `x` 键成为中断键、普通 `x` 不再入队。
+1. `./gradlew run -PsqueakStats=true`，确认退出时 stdout 和
+   `logs/runtime-stats.log` 都生成报告。
+2. 在 Squeak 工作区执行忙循环（例如 `[true] whileTrue`），按 `Alt+.`，
+   确认出现中断/调试器且不留下 `.` 字符。
+3. 关闭**主 Squeak 窗口**（不是只关闭中断提示框），确认统计输出且退出码为 0。
+4. 在 Workspace 执行 `Sensor setInterruptKey: 120`（或 Primitive 133），确认
+   `x` 成为中断键、普通 `x` 不再入队。
+5. 缺 sources/changes 启动时，确认 MVC 弹窗仍可用，`#107` 约 250Hz 而非百万级。
 
-验收结果：
-
-- [x] 1–4、6 通过：中断提示框出现，`Alt+.` 可中断，无残留 `.`，Primitive 133 可动态改键。
-- [x] 5 通过（Sprint 2 后复验）：正常关闭主窗口，终端输出并在
-  `logs/runtime-stats.log` 生成报告；`Screen.exit()` 已改用退出码 0，
-  Gradle 显示 `BUILD SUCCESSFUL`。
-- Sprint 1 时第 5 步曾未看到输出，原因是当时统计只写 stdout、没有落盘，
-  且文档没有区分“关闭主窗口”与“关闭中断提示框”。Sprint 2 已修正实现和文档。
+历史人工验收记录见
+[输入可靠性修复（2026-10-24）](../../archives/input-reliability-2026-10-24.md)
+和 [ISSUE-0004](../../issues/ISSUE-0004-mvc-popup-polling-cpu.md)。
 
 > 统计只在 JVM 正常退出时输出。`kill -9`、强制结束或 X 连接断开不会执行 shutdown hook。
 > 如果仍没有输出，按顺序检查：
@@ -140,4 +136,4 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 > 3. 启动命令是否真的带了 `-PsqueakStats=true`（IDE 运行配置经常不会转发 Gradle 属性）；
 > 4. 是否设置了 `-PsqueakLogging=false`（终端日志会被关闭，但 `logs/runtime-stats.log` 仍会写入）。
 
-> 如验收失败，按新缺陷处理，并更新本节与 `input-reliability.md`。
+> 如验收失败，按新缺陷处理，并更新本节与 `input-model.md`。

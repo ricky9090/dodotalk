@@ -75,7 +75,7 @@ DodoTalk 是否为这类忙等提供统一的节流策略，以及节流目标�
 
 - [ISSUE-0004](../issues/ISSUE-0004-mvc-popup-polling-cpu.md)
 - [DESIGN-0004](../design/DESIGN-0004-mvc-popup-polling-cpu.md)
-- [输入可靠性](../input-reliability.md)
+- [输入可靠性](../specifications/runtime/input-model.md)
 - Squeak 2.2 `PopUpMenu>>startUpWithCaption:at:`
 - Squeak 2.2 `InputSensor>>waitButton` / `waitNoButton`
 - Android 高端机型触控采样率公开规格（120–240Hz 常见，游戏向 480–720Hz）

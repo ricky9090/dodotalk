@@ -18,7 +18,7 @@ DodoTalk with the launcher or `-image` option. A commonly used archive is:
 For local end-to-end tests, place images outside the repository at
 `../temp/test-images/`. Do not place them under the project directory (including
 `temp/`), and do not commit images, `SqueakV2.sources`, or `.changes` files; see
-`doc/test-images.md`.
+`doc/guides/test-images.md`.
 
 ## Gradle Wrapper
 

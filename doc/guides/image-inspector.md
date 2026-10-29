@@ -130,5 +130,5 @@ SMALLTALK STACK:
 
 - `src/test/java/org/dodotalk/core/ImageInspector.java`
 - `build.gradle.kts`（`inspectImage` 任务）
-- [术语词典](glossary.md)
+- [术语词典](../specifications/reference/glossary.md)
 - [测试映像放置与发现](test-images.md)

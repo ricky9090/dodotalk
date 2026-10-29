@@ -107,7 +107,7 @@ interruptCheckCounterFeedBackReset += 10;
 - [x] 打开需要源码/Changes 的浏览器窗口时不再弹出 changes 文件错误框。
 
 > **更新（Sprint 1，2026-10-24）**：`cmd-.` 已接入 `interruptPending`，Primitive 133 已实现；
-> 自动化覆盖与待执行的人工验收见 `input-reliability.md`、`runtime-diagnostics.md`。
+> 自动化覆盖与待执行的人工验收见 `doc/specifications/runtime/input-model.md`、`doc/specifications/runtime/diagnostics.md`。
 
 ## 7. 后续冒烟修复（2026-10-24）
 
@@ -124,7 +124,7 @@ interruptCheckCounterFeedBackReset += 10;
 - **保存失败（save as）**：`saveAs` 在复制 changes 后调用 `imageName:`（Primitive 121）。
   现在单参数 Primitive 121 会更新快照目标并成功返回；逻辑名保持 Squeak 输入值
   （如 `foobar.image`），DodoTalk 物理目标追加 `.gz`（`foobar.image.gz`）。gzip 是
-  DodoTalk 层行为，不是 Squeak 2.2 约束，详见 `image-format.md`。
+  DodoTalk 层行为，不是 Squeak 2.2 约束，详见 `doc/specifications/image/image-format.md`。
 - **changes 写入**：文件 open/write/seek/close 已由 `FilePrimitiveTest` 覆盖，确保
   changes 追加路径可用。
 - **错误日志路径**：`SqueakDebug.log` 原由 `Debugger class>>openContext:...` 写入映像目录；

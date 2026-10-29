@@ -80,8 +80,8 @@ DodoTalk 独有的缺陷。但在确认这一点之前，不能把失败直接�
 - [x] 合成普通 `int[]` source Form 的测试中，Primitive 96 成功并把像素写入目标 Form。
 - [x] full image 启动/绘制复现中，`#96` 的失败均可归因为压缩 Form；若出现其他原因，记录并修复或另开 Issue。
 - [x] `./gradlew clean test` 全绿，测试数不低于当前 183。
-- [x] 更新 `doc/README.md`、`next-iteration-priorities.md`、`plan.md`、
-      `runtime-diagnostics.md` 中受影响的状态。
+- [x] 更新 `doc/README.md`、`doc/plans/next-iteration-priorities.md`、`doc/plans/plan.md`、
+      `specifications/runtime/diagnostics.md` 中受影响的状态。
 
 ## 4. 约束、风险与版权
 
@@ -141,7 +141,7 @@ DodoTalk 独有的缺陷。但在确认这一点之前，不能把失败直接�
 - `src/main/java/org/dodotalk/core/BitBlt.java`
 - `src/main/java/org/dodotalk/core/SqueakVM.java`
 - [DESIGN-0002](../design/DESIGN-0002-primitive-96-copybits-failures.md)
-- [运行时诊断统计](../runtime-diagnostics.md)
+- [运行时诊断统计](../specifications/runtime/diagnostics.md)
 
 ## 9. 实施记录
 

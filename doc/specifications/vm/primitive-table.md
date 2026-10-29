@@ -1,4 +1,11 @@
-### Primitive of Squeak 2.2
+# Squeak 2.2 原语表
+
+| 字段 | 值 |
+|------|----|
+| 状态 | current |
+| 来源 | Squeak 2.2 changes + `SqueakPrimitiveHandler.doPrimitiveInternal` |
+| 适用 | 原语编号 0–255、256–519、520+ |
+| 最后核对 | 2026-10-30 |
 
 Comments from Squeak2.2.changes
 

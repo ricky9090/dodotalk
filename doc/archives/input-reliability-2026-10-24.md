@@ -1,7 +1,9 @@
 # 输入可靠性修复
 
+> 状态：历史快照（2026-10-24）。当前输入契约见
+> [输入模型规范](../specifications/runtime/input-model.md)。
 > 日期：2026-10-24
-> 对应 [plan.md](plan.md) Phase 1.5（1.10–1.14）
+> 对应 [plan.md](../plans/plan.md) Phase 1.5（1.10–1.14）
 
 ## 1. 旧实现的问题
 
@@ -138,7 +140,7 @@ primitiveYield:     while (!screenEvent) wait(100ms)
 第 5 步的历史结论：Sprint 1 时统计只写启动 JVM 的终端标准输出，不写 `logs/`；
 如果只关闭 Squeak 内部的中断提示框而主窗口仍在运行，JVM 不会退出，shutdown hook
 也不会输出。Sprint 2 已增加 `logs/runtime-stats.log` 落盘，并把正常关闭窗口的退出码
-改为 0。排查项见 `runtime-diagnostics.md` 第 6 节。
+改为 0。排查项见 `doc/specifications/runtime/diagnostics.md` 第 6 节。
 
 > 自动化测试已覆盖键码、队列消费、`interruptPending`、`checkForInterrupts`；
 > 真实窗口验收确认了 AWT 焦点/键盘路径。若后续复现失败，按新缺陷处理并更新本节。

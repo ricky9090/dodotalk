@@ -1,7 +1,12 @@
 # 映像格式与 gzip 封装
 
-> 日期：2026-10-24（2026-10-30 增补缺少 sources/changes 的支持文件提示）
-> 适用范围：`SqueakImage`、Primitive 97、`save` / `save as`、启动参数 `-image`
+| 字段 | 值 |
+|------|----|
+| 状态 | current（gzip-only） |
+| 适用代码 | `SqueakImage`、`Starter`、Primitive 97/121/142 |
+| 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
+| 最后核对 | 2026-10-30 |
+| 后续计划 | [ISSUE-0005：raw `.image` 支持](../../issues/ISSUE-0005-raw-image-format-support.md) |
 
 ## 1. 结论
 
@@ -87,44 +92,12 @@ ScreenController>>saveAs
 > 旧版本生成的历史 `foobar.image` 如果存在，它仍然可能是 gzip 内容；可以用
 > `file foobar.image` 或 `xxd -l 2 foobar.image` 检查（gzip 魔数为 `1f 8b`）。
 
-## 4. 后续兼容原版 Squeak 工具链的改造项（尚未实施）
+## 4. 后续兼容原版 Squeak 工具链
 
-如果要让 DodoTalk 直接读写原版 Squeak 2.2 工具链的映像，需要做双格式支持：
-
-### 4.1 读取
-
-- 先读取文件头两个字节：
-  - `1f 8b`：使用 `GZIPInputStream`；
-  - 其他：使用原始 `DataInputStream`。
-- 或者按扩展名判断，但 magic sniffing 更可靠。
-
-### 4.2 写入
-
-- 物理目标以 `.gz` 结尾：使用 `GZIPOutputStream`；
-- 物理目标为 `.image` / `.IMA`：写原始 Squeak 映像数据，不加 gzip。
-
-### 4.3 save as 语义
-
-需要明确二选一：
-
-1. **保持当前 gzip 方案**：逻辑 `.image`，物理 `.image.gz`，DodoTalk 内部始终 gzip；
-2. **兼容方案 B**：逻辑 `.image`，物理 `.image` 写原始数据；只有显式 `.gz` 才压缩。
-
-方案 B 更符合原版 Squeak，但必须新增：
-
-- raw/gzip 读取识别；
-- raw 写入路径；
-- 与原版 Squeak 2.2 VM 的交叉验证；
-- 保存后重载测试，以及 raw 映像 fixture 测试。
-
-### 4.4 验证重点
-
-- DodoTalk 写出的 raw `.image` 能否被原版 Squeak 2.2 打开；
-- 原版 Squeak 2.2 写出的 raw `.image` 能否被 DodoTalk 加载；
-- 用户提供的 `.image.gz` 仍能正常加载；
-- `save` / `save as` 后 changes 名称和重名检查不回归。
-
-> 当前状态：**未实施**。DodoTalk 仍是 gzip-only；方案 A 只解决了扩展名与内容不一致的问题。
+DodoTalk 当前仍是 **gzip-only**。raw `.image` / `.IMA` 的读取、写入、save-as
+语义和交叉验证属于后续需求，已移入
+[ISSUE-0005：raw `.image` 支持](../../issues/ISSUE-0005-raw-image-format-support.md)，
+不在本规范中描述未实现行为。
 
 ## 5. 相关代码
 

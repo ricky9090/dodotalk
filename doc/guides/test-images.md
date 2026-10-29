@@ -1,7 +1,7 @@
 # 测试映像放置与发现
 
 > 最后更新：2026-10-26
-> 相关决策：[ADR-0002](adr/ADR-0002-test-image-storage-and-discovery.md)
+> 相关决策：[ADR-0002](../adr/ADR-0002-test-image-storage-and-discovery.md)
 
 ## 1. 目的
 
@@ -71,7 +71,7 @@ JSQUEAK_TEST_FULL_IMAGE=/path/to/squeak22.image.gz \
 - 对应的环境变量未设置；
 - 期望的固定文件名；
 - 已检查的目录列表；
-- 参考 `doc/test-images.md`。
+- 参考 `doc/guides/test-images.md`。
 
 ## 7. 版权与提交边界
 
@@ -115,5 +115,5 @@ gzip -c Squeak2.2.image > Squeak2.2.image.gz
 
 - `src/test/java/org/dodotalk/TestImages.java`
 - `src/test/java/org/dodotalk/TestImagesTest.java`
-- [ADR-0002](adr/ADR-0002-test-image-storage-and-discovery.md)
-- [第三方声明](../THIRD_PARTY_NOTICES.md)
+- [ADR-0002](../adr/ADR-0002-test-image-storage-and-discovery.md)
+- [第三方声明](../../THIRD_PARTY_NOTICES.md)

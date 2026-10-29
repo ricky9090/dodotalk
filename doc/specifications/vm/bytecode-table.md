@@ -1,4 +1,11 @@
-### Squeak 2.2 Bytecode Table
+# Squeak 2.2 字节码表
+
+| 字段 | 值 |
+|------|----|
+| 状态 | current |
+| 来源 | `SqueakV2.sources` `initializeBytecodeTable` |
+| 适用 | `SqueakVM.bytecodeTable[256]` |
+| 最后核对 | 2026-10-30 |
 
 SqueakV2.sources initializeBytecodeTable
 

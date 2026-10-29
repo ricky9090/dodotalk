@@ -3,8 +3,8 @@
 > 日期：2026-10-30（MVC 弹窗轮询限速与支持文件提示完成后更新）
 > 依据：当前代码审查、`./gradlew clean test`（197 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
 > 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速已落地。
-> 文档流程：Issue → Design → ADR，见 [`doc/README.md`](README.md) 与 [`ADR-0001`](adr/ADR-0001-documentation-workflow.md)。
-> 相关记录见 `input-reliability.md`、`runtime-diagnostics.md`、`rendering-review.md`、`archives/freeze-analysis-2026-10-24.md`。
+> 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
+> 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
 
 ## 1. 当前基线
 
@@ -100,7 +100,7 @@
 - 仓库已移除内置 Squeak image；用户通过启动器或 `-image` 提供 `.image.gz`。
 - DodoTalk 保存的 `.image.gz` 尚未与原版 Squeak 2.2 交叉验证。
 - 仍不支持 raw `.image`；GUI 只接受 `.image.gz`，原版工具链无法直接打开 DodoTalk 快照。
-- 需要 raw/gzip 识别、raw 写入路径和交叉验证，详见 `doc/image-format.md`。
+- 需要 raw/gzip 识别、raw 写入路径和交叉验证，详见 `doc/specifications/image/image-format.md` 和 [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md)。
 - 这是数据可移植性任务，建议放在 Sprint 3。
 
 ### P1-5：原语测试网

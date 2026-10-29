@@ -1,4 +1,11 @@
-### Squeak 2.2 Bitblt Operation Table
+# Squeak 2.2 BitBlt 操作表
+
+| 字段 | 值 |
+|------|----|
+| 状态 | current |
+| 来源 | Squeak 2.2 changes `initBBOpTable` |
+| 适用 | `BitBlt` 的 `combinationRule` 0–41 |
+| 最后核对 | 2026-10-30 |
 
 Squeak2.2.changes initBBOpTable
 

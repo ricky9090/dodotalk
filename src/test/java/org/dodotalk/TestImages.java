@@ -40,7 +40,7 @@ import java.util.Set;
  * <p>
  * Only fixed file names are checked; the resolver never scans arbitrary
  * directories. Tests that need an image are skipped when no image is found.
- * See {@code doc/test-images.md} and {@code ADR-0002}.
+ * See {@code doc/guides/test-images.md} and {@code ADR-0002}.
  */
 public final class TestImages {
 
@@ -90,7 +90,7 @@ public final class TestImages {
             Assumptions.assumeTrue(false,
                     key + " is not set and no " + baseName + ".image.gz was found in "
                             + defaultImageDirectories()
-                            + ". Place test images in ../temp/test-images/ or see doc/test-images.md.");
+                            + ". Place test images in ../temp/test-images/ or see doc/guides/test-images.md.");
             return null; // unreachable; keeps the compiler happy
         }
         skipIfRawUnsupported(found);

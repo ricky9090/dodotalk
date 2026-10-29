@@ -49,7 +49,7 @@ boundary.
 ```
 
 `-PsqueakStats=true` prints a primitive/timer/input/frame summary on exit; see
-[doc/runtime-diagnostics.md](doc/runtime-diagnostics.md).
+[doc/specifications/runtime/diagnostics.md](doc/specifications/runtime/diagnostics.md).
 
 Image-dependent integration tests are skipped when no image is supplied. To run
 them locally, either set the environment variables:
@@ -64,7 +64,7 @@ or place the images outside the repository at `../temp/test-images/` using the
 fixed names `mini.image.gz` and `squeak22.image.gz` (the official
 `Squeak2.2.image.gz` spelling is also accepted). The resolver checks this path
 automatically. Keep images out of Git; see
-[doc/test-images.md](doc/test-images.md) and
+[doc/guides/test-images.md](doc/guides/test-images.md) and
 [ADR-0002](doc/adr/ADR-0002-test-image-storage-and-discovery.md).
 
 On a headless machine, pass `-image`; without an image and without a display the
@@ -87,7 +87,7 @@ selected image enables source browsing and the debugger.
 `Save as...` keeps the logical name entered in Squeak (for example
 `foobar.image`) and writes `foobar.image.gz` in the chosen location. The gzip
 layer is DodoTalk-specific, not a Squeak 2.2 requirement; see
-[doc/image-format.md](doc/image-format.md).
+[doc/specifications/image/image-format.md](doc/specifications/image/image-format.md).
 
 Squeak's `vmPath` points at the selected image's directory, so a user-supplied
 `SqueakV2.sources` and matching `.changes` file next to the image are found
@@ -138,7 +138,7 @@ With the improvements in DodoTalk, it can load and run a full Squeak 2.2 image s
   the logical name (for example `foobar.image`) and writes `foobar.image.gz`.
   The launcher does not copy a Squeak image into the repository. Squeak debugger
   stacks are written to `logs/` next to the selected image. The gzip wrapper is
-  DodoTalk-specific; see [doc/image-format.md](doc/image-format.md).
+  DodoTalk-specific; see [doc/specifications/image/image-format.md](doc/specifications/image/image-format.md).
 * Sound shutdown is currently a tracked no-op stub (Primitive 172), so image
   snapshot is not blocked by the not-yet-ported sound subsystem.
 * `Alt+.` (`cmd-.`) now interrupts a busy image, Primitive 133 can change the
@@ -161,10 +161,13 @@ I'm planning to add more improvements to this project:
 - [AGENTS.md](AGENTS.md) — build/run instructions, project layout and known gaps
 - [AUTHORS](AUTHORS) — JSqueak lineage and DodoTalk maintainer
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — image, Gradle and third-party licensing notes
-- [doc/next-iteration-priorities.md](doc/next-iteration-priorities.md) — current prioritized roadmap
-- [doc/runtime-diagnostics.md](doc/runtime-diagnostics.md) — `-PsqueakStats=true` output and interpretation
-- [doc/plan.md](doc/plan.md) — phased maintenance plan
-- [doc/image-format.md](doc/image-format.md) — image format, gzip wrapper and original-Squeak compatibility plan
+- [doc/README.md](doc/README.md) — documentation map
+- [doc/specifications/README.md](doc/specifications/README.md) — current technical specs (VM tables, image format, input/display/diagnostics)
+- [doc/guides/README.md](doc/guides/README.md) — developer guides (ImageInspector, test images)
+- [doc/plans/next-iteration-priorities.md](doc/plans/next-iteration-priorities.md) — current prioritized roadmap
+- [doc/specifications/runtime/diagnostics.md](doc/specifications/runtime/diagnostics.md) — `-PsqueakStats=true` output and interpretation
+- [doc/plans/plan.md](doc/plans/plan.md) — phased maintenance plan
+- [doc/specifications/image/image-format.md](doc/specifications/image/image-format.md) — image format and gzip wrapper
 - [doc/archives/report_20260913.md](doc/archives/report_20260913.md) — historical deep-dive analysis
 
 ## Other derivative/fork of JSqueak

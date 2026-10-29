@@ -58,7 +58,7 @@
    - 增加 `./gradlew checkNoSqueakImages`，用 `git ls-files` 检查是否有被跟踪的映像/支持文件；该任务保留作为兜底，即使自动发现不再读取项目内目录；
    - 不把映像放入 `src/test/resources`、`doc/` 或项目内 `temp/`。
 
-7. **提示位置**：`doc/test-images.md`、`README.md`、`AGENTS.md` 和 `THIRD_PARTY_NOTICES.md`。
+7. **提示位置**：`doc/guides/test-images.md`、`README.md`、`AGENTS.md` 和 `THIRD_PARTY_NOTICES.md`。
 
 ## 后果
 
@@ -86,6 +86,6 @@
 
 ## 参考
 
-- [测试映像放置与发现](../test-images.md)
+- [测试映像放置与发现](../guides/test-images.md)
 - `src/test/java/org/dodotalk/TestImages.java`
 - [第三方声明](../../THIRD_PARTY_NOTICES.md)

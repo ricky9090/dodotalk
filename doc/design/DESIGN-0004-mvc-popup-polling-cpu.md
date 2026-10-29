@@ -235,8 +235,8 @@ public static List<String> supportFileWarnings(File imageFile);
 
 - [ISSUE-0004](../issues/ISSUE-0004-mvc-popup-polling-cpu.md)
 - [ADR-0003](../adr/ADR-0003-mouse-polling-throttle.md)
-- [输入可靠性](../input-reliability.md)
-- [运行时诊断](../runtime-diagnostics.md)
-- [映像格式](../image-format.md)
+- [输入可靠性](../specifications/runtime/input-model.md)
+- [运行时诊断](../specifications/runtime/diagnostics.md)
+- [映像格式](../specifications/image/image-format.md)
 - Squeak 2.2 `PopUpMenu>>startUpWithCaption:at:`
 - Squeak 2.2 `InputSensor>>waitButton` / `waitNoButton`
