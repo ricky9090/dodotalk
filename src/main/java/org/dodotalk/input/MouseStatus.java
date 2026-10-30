@@ -286,7 +286,13 @@ public class MouseStatus extends MouseInputAdapter {
                         lock.wait(remaining / 1_000_000L,
                                 (int) (remaining % 1_000_000L));
                     } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                        // The JVM already cleared the interrupt status when it
+                        // threw InterruptedException. Do not re-arm it: a
+                        // persistent flag makes every later wait throw
+                        // immediately and disables this idle throttle.
+                        // A future VM-wide stop flag can translate the
+                        // interruption into an orderly shutdown instead.
+                        Thread.interrupted(); // defensive no-op
                         break;
                     }
                     now = System.nanoTime();

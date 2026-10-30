@@ -2562,10 +2562,16 @@ public class SqueakPrimitiveHandler {
     }
 
     private Object primitiveKbdNext() {
-        if (theDisplay == null || !theDisplay.keyboardHasNext()) {
+        if (theDisplay == null) {
             return SqueakVM.nilObj;
         }
-        return InterpreterHelper.smallFromInt(theDisplay.keyboardNext());
+        // Do not short-circuit on keyboardHasNext(): an empty poll must pass
+        // through the keyboard throttle, otherwise a loop such as
+        // [Sensor keyboardPressed] whileFalse: [] would spin at full speed.
+        int next = theDisplay.keyboardNext();
+        return next == Integer.MIN_VALUE
+                ? (Object) SqueakVM.nilObj
+                : InterpreterHelper.smallFromInt(next);
     }
 
     private Object primitiveKbdPeek() {

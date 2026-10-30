@@ -28,7 +28,7 @@
 
 | 文档 | 内容 | 主要代码 |
 |------|------|----------|
-| [输入模型](runtime/input-model.md) | 事件闩锁、鼠标 transition、键盘、中断键、250Hz 空闲轮询 | `input/*`、`Screen` |
+| [输入模型](runtime/input-model.md) | 事件闩锁、鼠标 transition、键盘、中断键、250Hz 鼠标/键盘空闲轮询 | `input/*`、`Screen` |
 | [显示模型](runtime/display-model.md) | 绘制链路、深度、脏矩形、显示原语、EDT 约束 | `display/*`、`BitBlt` |
 | [运行时诊断](runtime/diagnostics.md) | `RuntimeStats` 启用方式、字段、失败分类、输出解读 | `uilts/RuntimeStats` |
 

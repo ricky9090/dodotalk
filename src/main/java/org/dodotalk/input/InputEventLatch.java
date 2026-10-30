@@ -63,9 +63,12 @@ public final class InputEventLatch {
             try {
                 wait(remaining / 1_000_000L, (int) (remaining % 1_000_000L));
             } catch (InterruptedException e) {
-                // Preserve the pending signal for the caller and let the
-                // interrupt policy be decided at the VM boundary.
-                Thread.currentThread().interrupt();
+                // The JVM already cleared the interrupt status when it threw
+                // InterruptedException. Do not re-arm it: a persistent flag
+                // makes every later wait throw immediately, so primitiveYield
+                // would stop sleeping and the interpreter could busy-spin.
+                // A future VM-wide stop flag can translate this into shutdown.
+                Thread.interrupted(); // defensive no-op
                 return false;
             }
         }

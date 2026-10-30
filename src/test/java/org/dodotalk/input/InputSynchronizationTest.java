@@ -9,6 +9,7 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -77,6 +78,39 @@ class InputSynchronizationTest {
 
         assertTrue(latch.await(0));
         assertFalse(latch.hasPending());
+    }
+
+    @Test
+    @DisplayName("an interrupted await does not disable later waits")
+    void interruptedAwaitDoesNotDisableLaterWaits() throws Exception {
+        InputEventLatch latch = new InputEventLatch();
+        AtomicInteger firstResult = new AtomicInteger(-1);
+        AtomicInteger secondResult = new AtomicInteger(-1);
+        AtomicLong firstMillis = new AtomicLong(-1);
+        AtomicLong secondMillis = new AtomicLong(-1);
+
+        Thread waiter = new Thread(() -> {
+            Thread.currentThread().interrupt();
+            long start = System.nanoTime();
+            firstResult.set(latch.await(30) ? 1 : 0);
+            firstMillis.set((System.nanoTime() - start) / 1_000_000L);
+
+            start = System.nanoTime();
+            secondResult.set(latch.await(30) ? 1 : 0);
+            secondMillis.set((System.nanoTime() - start) / 1_000_000L);
+        });
+        waiter.start();
+        waiter.join(2000);
+
+        assertFalse(waiter.isAlive(), "the interrupted waiter did not finish");
+        assertEquals(0, firstResult.get(), "the first await should observe the interrupt");
+        assertEquals(0, secondResult.get(), "the second await should time out");
+        assertTrue(firstMillis.get() < 20,
+                "the first await should return immediately: " + firstMillis.get() + "ms");
+        assertTrue(secondMillis.get() >= 20,
+                "the interrupt flag disabled the second wait: " + secondMillis.get() + "ms");
+        assertFalse(waiter.isInterrupted(),
+                "the latch must not leave the timer/VM thread interrupted");
     }
 
     // endregion
@@ -278,6 +312,23 @@ class InputSynchronizationTest {
         assertEquals(8, queue.modifierKeys());
         queue.clearModifiers();
         assertEquals(0, queue.modifierKeys());
+    }
+
+    @Test
+    @DisplayName("modifier keys do not enter the type-ahead queue")
+    void modifierKeysAreNotQueued() {
+        KeyboardQueue queue = new KeyboardQueue();
+
+        queue.keyPressed(keyEvent(KeyEvent.KEY_PRESSED, InputEvent.ALT_DOWN_MASK,
+                KeyEvent.VK_ALT, KeyEvent.CHAR_UNDEFINED));
+        queue.keyPressed(keyEvent(KeyEvent.KEY_PRESSED, InputEvent.CTRL_DOWN_MASK,
+                KeyEvent.VK_CONTROL, KeyEvent.CHAR_UNDEFINED));
+        queue.keyPressed(keyEvent(KeyEvent.KEY_PRESSED, InputEvent.SHIFT_DOWN_MASK,
+                KeyEvent.VK_SHIFT, KeyEvent.CHAR_UNDEFINED));
+        queue.keyPressed(keyEvent(KeyEvent.KEY_PRESSED, InputEvent.META_DOWN_MASK,
+                KeyEvent.VK_META, KeyEvent.CHAR_UNDEFINED));
+
+        assertFalse(queue.hasNext(), "modifier keys were queued as typed characters");
     }
 
     @Test

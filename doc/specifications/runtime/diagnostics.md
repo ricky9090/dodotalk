@@ -100,13 +100,20 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 - `#107` 在缺 sources/changes 的 MVC 弹窗期间会被限制在 250Hz 左右
   （`ISSUE-0004`）；正常运行时约数百次/秒。如果看到 `#107` 达到百万级，
   应检查 `MouseStatus.POLL_RATE_HZ` 和 `pollMouseButtons()` 是否被绕过。
+- `#109`（`Sensor keyboardPressed`）和 `#108`（`Sensor keyboard`）在空队列时
+  也会被限制在 250Hz 左右（`ISSUE-0006`）。如果看到 `#109` 达到十万/百万级，
+  应检查 `KeyboardQueue.POLL_RATE_HZ`、`pollPeek()/pollNext()` 是否被绕过，
+  以及输入等待是否因为中断标志而立即返回。
 
 ## 5. 测试
 
 - `RuntimeStatsTest`：计数、分类、禁用状态、汇总格式、报告落盘。
 - `InterruptAndStatsTest`：真实 `SqueakVM` 注入启用统计，验证未实现/失败/故意失败分类。
 - `DisplayPrimitiveTest`：126 defer 标志、231/127/233/140 的 headless 行为。
-- `MousePollThrottleTest`：Primitive 90/107 空闲轮询限速、输入唤醒、正常帧率不延迟。
+- `MousePollThrottleTest`：Primitive 90/107 空闲轮询限速、输入唤醒、正常帧率不延迟、
+  中断后限速保持。
+- `KeyboardPollThrottleTest`：Primitive 108/109 空闲轮询限速、按键唤醒、
+  非空队列快速路径、中断后限速保持。
 - `StarterTest`：支持文件发现与缺失警告。
 - `CopyBitsTest`：普通复制、压缩 Form 失败路径，以及 rule 22/32 的 tally 栈效果。
 - 汇总输出不含线程/进程标识，便于测试断言。
@@ -123,6 +130,8 @@ Gradle 中由 `-PsqueakStats=true` 转发。
 4. 在 Workspace 执行 `Sensor setInterruptKey: 120`（或 Primitive 133），确认
    `x` 成为中断键、普通 `x` 不再入队。
 5. 缺 sources/changes 启动时，确认 MVC 弹窗仍可用，`#107` 约 250Hz 而非百万级。
+6. 在 Workspace 执行 `[Sensor keyboardPressed] whileFalse` 类忙等，确认 `#109`
+   约 250Hz、CPU 不再满载（`ISSUE-0006`）。
 
 历史人工验收记录见
 [输入可靠性修复（2026-10-24）](../../archives/input-reliability-2026-10-24.md)

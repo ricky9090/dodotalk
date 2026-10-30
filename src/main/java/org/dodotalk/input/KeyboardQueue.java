@@ -24,6 +24,20 @@ public class KeyboardQueue implements KeyListener {
     private static final int TYPEAHEAD_LIMIT = 256;
 
     /**
+     * Maximum idle polling rate for the Squeak keyboard primitives.
+     * <p>
+     * Squeak 2.2 contains unbounded keyboard waits such as
+     * {@code [Sensor keyboardPressed] whileFalse: []} and the
+     * {@code Object>>primitiveError:} fallback. Primitive 109 used to return
+     * immediately with an empty queue, so those loops could execute millions
+     * of times per second. This is the same 250Hz policy as the mouse
+     * primitives; a real key event wakes the wait immediately.
+     */
+    public static final int POLL_RATE_HZ = MouseStatus.POLL_RATE_HZ;
+
+    private static final long POLL_INTERVAL_NANOS = 1_000_000_000L / POLL_RATE_HZ;
+
+    /**
      * See instance methods of InputSensor.
      */
     private static final int
@@ -101,6 +115,10 @@ public class KeyboardQueue implements KeyListener {
 
     private final Object lockObj = new Object();
 
+    private final PollGate peekPollGate = new PollGate();
+    private final PollGate nextPollGate = new PollGate();
+    private long inputSequence;
+
     public KeyboardQueue() {
         this(() -> {
         });
@@ -132,6 +150,26 @@ public class KeyboardQueue implements KeyListener {
         }
     }
 
+    /**
+     * Primitive 109 entry point. Like {@link #peek()}, but limits empty-queue
+     * polls to {@link #POLL_RATE_HZ}. A key event wakes the wait immediately,
+     * and a non-empty queue never waits.
+     */
+    public int pollPeek() {
+        awaitPollSlot(peekPollGate);
+        return peek();
+    }
+
+    /**
+     * Primitive 108 entry point. Like {@link #next()}, but limits empty-queue
+     * polls to {@link #POLL_RATE_HZ}. A key event wakes the wait immediately,
+     * and a non-empty queue never waits.
+     */
+    public int pollNext() {
+        awaitPollSlot(nextPollGate);
+        return next();
+    }
+
     public boolean hasNext() {
         synchronized (lockObj) {
             return !fCharQueue.isEmpty();
@@ -149,7 +187,14 @@ public class KeyboardQueue implements KeyListener {
     }
 
     public void clearModifiers() {
-        fModifierKeys = 0;
+        boolean changed;
+        synchronized (lockObj) {
+            changed = fModifierKeys != 0;
+            fModifierKeys = 0;
+        }
+        if (changed) {
+            signalInput();
+        }
     }
 
     // endregion
@@ -179,7 +224,7 @@ public class KeyboardQueue implements KeyListener {
             }
         }
         if (changed || consumed) {
-            inputSignal.run();
+            signalInput();
         }
     }
 
@@ -189,7 +234,7 @@ public class KeyboardQueue implements KeyListener {
         int modifiers = mapModifierKey(event);
         if (modifiers != fModifierKeys) {
             fModifierKeys = modifiers;
-            inputSignal.run();
+            signalInput();
         }
     }
 
@@ -207,17 +252,17 @@ public class KeyboardQueue implements KeyListener {
         if (keyChar == expected) {
             // keyPressed already handled this character (or consumed it as
             // the interrupt key); keyTyped is a duplicate.
-            inputSignal.run();
+            signalInput();
             return;
         }
 
         if (isInterruptKey(event, keyChar)) {
-            inputSignal.run();
+            signalInput();
             return;
         }
 
         if (addToQueue(keyChar)) {
-            inputSignal.run();
+            signalInput();
         }
     }
 
@@ -265,6 +310,63 @@ public class KeyboardQueue implements KeyListener {
         return false;
     }
 
+    /**
+     * Adds a bounded wait before an empty-queue keyboard poll when the image
+     * is spinning. A key event increments {@link #inputSequence} and wakes the
+     * wait, so latency is not tied to the 250Hz idle rate. Non-empty queues
+     * always bypass the wait.
+     */
+    private void awaitPollSlot(PollGate gate) {
+        synchronized (lockObj) {
+            long now = System.nanoTime();
+            long earliest = gate.lastPollNanos + POLL_INTERVAL_NANOS;
+            long observed = gate.observedSequence;
+            if (gate.initialized && now < earliest
+                    && inputSequence == observed && fCharQueue.isEmpty()) {
+                while (now < earliest && inputSequence == observed
+                        && fCharQueue.isEmpty()) {
+                    long remaining = earliest - now;
+                    try {
+                        lockObj.wait(remaining / 1_000_000L,
+                                (int) (remaining % 1_000_000L));
+                    } catch (InterruptedException e) {
+                        // The JVM already cleared the interrupt status. Do not
+                        // re-arm it: a persistent flag would make every later
+                        // wait throw immediately and disable the throttle.
+                        Thread.interrupted(); // defensive no-op
+                        break;
+                    }
+                    now = System.nanoTime();
+                }
+            }
+            gate.lastPollNanos = now;
+            gate.observedSequence = inputSequence;
+            gate.initialized = true;
+        }
+    }
+
+    /**
+     * Records a keyboard event, wakes an idle keyboard poll, and notifies the
+     * VM's input latch.
+     */
+    private void signalInput() {
+        synchronized (lockObj) {
+            inputSequence++;
+            lockObj.notifyAll();
+        }
+        inputSignal.run();
+    }
+
+    /**
+     * Per-primitive keyboard poll rate limiter. Fields are guarded by
+     * {@link #lockObj}.
+     */
+    private static final class PollGate {
+        private boolean initialized;
+        private long lastPollNanos;
+        private long observedSequence;
+    }
+
     private static int mapModifierKey(KeyEvent event) {
         int modifiers = 0;
         if (event.isShiftDown()) {
@@ -281,6 +383,20 @@ public class KeyboardQueue implements KeyListener {
     }
 
     private static char mapSpecialKey(KeyEvent evt) {
+        // Modifier keys do not produce typed characters. Without this guard,
+        // pressing Alt with a Meta/Alt modifier active mapped the modifier's
+        // virtual key code to a control character and queued it as type-ahead.
+        switch (evt.getKeyCode()) {
+            case KeyEvent.VK_SHIFT:
+            case KeyEvent.VK_CONTROL:
+            case KeyEvent.VK_ALT:
+            case KeyEvent.VK_META:
+            case KeyEvent.VK_ALT_GRAPH:
+                return KeyEvent.CHAR_UNDEFINED;
+            default:
+                break;
+        }
+
         int specialKeyIndex = 0;
         while (specialKeyIndex < JAVA_KEYS.length && JAVA_KEYS[specialKeyIndex] != evt.getKeyCode())
             specialKeyIndex++;

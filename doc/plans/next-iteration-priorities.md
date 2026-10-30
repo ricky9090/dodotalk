@@ -1,7 +1,7 @@
 # DodoTalk 下一迭代高优方向
 
 > 日期：2026-10-30（MVC 弹窗轮询限速与支持文件提示完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（197 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 依据：当前代码审查、`./gradlew clean test`（205 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
 > 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
@@ -11,12 +11,12 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 197 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标轮询限速、启动参数与支持文件警告、测试映像发现 |
+| 测试 | 205 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz`；Primitive 97 可保存并重新加载 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
 | 显示 | 1/2/4/8/16/32 bpp；脏矩形合并/裁剪；defer/force 生效；233 明确失败 |
-| 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断；MVC 空闲鼠标轮询限制在 250Hz（ISSUE-0004） |
+| 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断；MVC 空闲鼠标/键盘轮询限制在 250Hz（ISSUE-0004 / ISSUE-0006） |
 | 诊断 | 原语调用/失败直方图与分类、定时器延迟、输入队列深度、绘制耗时；stdout + `logs/runtime-stats.log` |
 | 文件 | 150–160、162 已接线；`imageName`/`vmPath`/路径分隔符已修正 |
 | 工程化 | 无 CI（重要但低优先级）；无 GUI 自动化冒烟、无覆盖率门禁、无性能基线 |
@@ -87,6 +87,16 @@
 - 实测缺文件时 104% → 7.8%–13%（含启动），107 约 233–247Hz；支持文件齐全时正常。
 - 新增 9 个测试（5 个轮询限速 + 4 个支持文件警告）。
 
+### P1-2.6（已完成）：键盘忙等与中断标志
+
+- 见 `ISSUE-0006` / `DESIGN-0006` / `ADR-0005`。
+- `KeyboardQueue` 为 Primitive 108/109 增加每原语 250Hz 空闲轮询门；队列非空时
+  立即返回，按键事件立即唤醒。
+- 输入等待的 `InterruptedException` catch 不再重新置位 Java 中断标志，避免一次
+  中断永久破坏鼠标/键盘限速。
+- 修饰键本身不再进入 typeahead；中断键 `Alt+.` 行为不变。
+- 新增 8 个测试，当前共 205 个测试通过。
+
 ### P1-3：全屏/窗口缩放/光标
 
 - Primitive 233 已明确失败，但全屏能力仍未实现。
@@ -144,7 +154,7 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 197；
+4. `./gradlew clean test` 全绿，测试数不低于当前 205；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论

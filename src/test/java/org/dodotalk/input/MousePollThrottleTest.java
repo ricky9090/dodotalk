@@ -7,6 +7,7 @@ import javax.swing.JPanel;
 import java.awt.event.MouseEvent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -106,6 +107,32 @@ class MousePollThrottleTest {
         assertEquals(20, point.y, "the queued point was not returned");
         assertTrue(elapsedMillis < 20,
                 "a queued transition was delayed by the idle cap: " + elapsedMillis + "ms");
+    }
+
+    @Test
+    @DisplayName("an interrupted mouse poll keeps the idle cap")
+    void interruptedPollKeepsThrottle() throws Exception {
+        MouseStatus status = new MouseStatus();
+        status.pollMouseButtons(); // establish the poll gate
+
+        final long[] polls = new long[1];
+        Thread poller = new Thread(() -> {
+            long start = System.nanoTime();
+            while (System.nanoTime() - start < 300_000_000L) {
+                status.pollMouseButtons();
+                polls[0]++;
+            }
+        });
+        poller.start();
+        Thread.sleep(30);
+        poller.interrupt();
+        poller.join(1000);
+
+        double hz = polls[0] / 0.3;
+        assertFalse(poller.isInterrupted(),
+                "the poll gate must not leave the VM thread interrupted");
+        assertTrue(hz <= MouseStatus.POLL_RATE_HZ * 1.5,
+                "interruption disabled the mouse throttle: " + hz + " Hz");
     }
 
     private static MouseEvent mouseEvent(int button) {

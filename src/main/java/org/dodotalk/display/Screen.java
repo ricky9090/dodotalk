@@ -525,13 +525,22 @@ public class Screen {
         }
     }
 
+    /**
+     * Primitive 109 entry point. Empty-queue polling is capped by
+     * {@link org.dodotalk.input.KeyboardQueue#POLL_RATE_HZ}; a key event wakes
+     * a waiting poll immediately.
+     */
     public int keyboardPeek() {
-        return fKeyboardQueue.peek();
+        return fKeyboardQueue.pollPeek();
     }
 
+    /**
+     * Primitive 108 entry point. Empty-queue polling is capped by
+     * {@link org.dodotalk.input.KeyboardQueue#POLL_RATE_HZ}; a key event wakes
+     * a waiting poll immediately.
+     */
     public int keyboardNext() {
-        //System.err.println("character code="+fKeyboardQueue.peek());
-        return fKeyboardQueue.next();
+        return fKeyboardQueue.pollNext();
     }
 
     public boolean keyboardHasNext() {
