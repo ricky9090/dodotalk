@@ -1,7 +1,8 @@
 # 测试映像放置与发现
 
-> 最后更新：2026-10-26
-> 相关决策：[ADR-0002](../adr/ADR-0002-test-image-storage-and-discovery.md)
+> 最后更新：2026-10-31
+> 相关决策：[ADR-0002](../adr/ADR-0002-test-image-storage-and-discovery.md) /
+> [ADR-0007](../adr/ADR-0007-raw-test-image-discovery.md)
 
 ## 1. 目的
 
@@ -16,8 +17,8 @@ DodoTalk 不内置任何 Squeak 映像。开发阶段的端到端测试需要用
 │   └── ...
 └── temp/
     └── test-images/
-        ├── mini.image.gz      # 可选：mini image
-        └── squeak22.image.gz  # 完整 Squeak 2.2 image
+        ├── mini.image.gz      # 可选：mini image（或 mini.image）
+        └── squeak22.image.gz  # 完整 Squeak 2.2 image（或 squeak22.image）
 ```
 
 从仓库根目录看，路径是 `../temp/test-images/`。该目录在仓库之外，Git 不会追踪。
@@ -28,10 +29,11 @@ DodoTalk 不内置任何 Squeak 映像。开发阶段的端到端测试需要用
 
 | 用途 | 推荐文件名 | 兼容文件名 |
 |------|------------|------------|
-| mini image | `mini.image.gz` | — |
-| full image | `squeak22.image.gz` | `Squeak2.2.image.gz` |
+| mini image | `mini.image.gz` 或 `mini.image` | — |
+| full image | `squeak22.image.gz` 或 `squeak22.image` | `Squeak2.2.image.gz` / `Squeak2.2.image` |
 
-当前加载器只支持 gzip。raw `.image` 会在发现阶段被识别，但测试会跳过并提示先转成 `.image.gz`，直到 raw 支持落地。
+加载器按 magic bytes 识别 raw/gzip；`.image` 和 `.image.gz` 都可以直接用于测试。
+发现顺序优先 gzip，其次 raw。
 
 ## 4. 解析顺序
 
@@ -54,7 +56,7 @@ DodoTalk 不内置任何 Squeak 映像。开发阶段的端到端测试需要用
 
 ```bash
 JSQUEAK_TEST_MINI_IMAGE=/path/to/mini.image.gz \
-JSQUEAK_TEST_FULL_IMAGE=/path/to/squeak22.image.gz \
+JSQUEAK_TEST_FULL_IMAGE=/path/to/squeak22.image \
 ./gradlew clean test
 ```
 
@@ -95,12 +97,13 @@ JSQUEAK_TEST_FULL_IMAGE=/path/to/squeak22.image.gz \
 
 确认文件名是否完全匹配；在仓库根目录执行 `pwd`，确认 `../temp/test-images/` 指向预期位置；或在 IDE 中设置 `-Djsqueak.test.images.dir=/absolute/path`。
 
-**放了官方 `Squeak2.2.image` 但测试跳过**
+**放了官方 `Squeak2.2.image` 但测试没有使用它**
 
-当前只支持 gzip。先压缩：
+确认文件名在 `../temp/test-images/` 下可读；raw `.image` 现在已支持。如果同时存在
+`.image` 和 `.image.gz`，发现器会优先使用 gzip。也可以显式指定：
 
 ```bash
-gzip -c Squeak2.2.image > Squeak2.2.image.gz
+JSQUEAK_TEST_FULL_IMAGE=/path/to/Squeak2.2.image ./gradlew clean test
 ```
 
 **如何确认实际使用了哪个映像**

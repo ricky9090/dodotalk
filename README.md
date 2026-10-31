@@ -27,9 +27,9 @@ The Java package is `org.dodotalk`.
 Requirements: **JDK 25**. The repository includes the Gradle 9.8.2 Wrapper, so a separate Gradle installation is not required.
 
 This repository does **not** bundle a Squeak image. The launcher asks you to
-select a gzip-compressed Squeak image (`*.image.gz`) that you are licensed to
-use. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the licensing
-boundary.
+select a raw or gzip-compressed Squeak image (`*.image`, `*.IMA`, `*.image.gz`)
+that you are licensed to use. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the licensing boundary.
 
 ```bash
 # compile and run the JUnit 5 test suite
@@ -61,8 +61,8 @@ JSQUEAK_TEST_FULL_IMAGE=/path/to/squeak22.image.gz \
 ```
 
 or place the images outside the repository at `../temp/test-images/` using the
-fixed names `mini.image.gz` and `squeak22.image.gz` (the official
-`Squeak2.2.image.gz` spelling is also accepted). The resolver checks this path
+fixed names `mini.image.gz`/`mini.image` and `squeak22.image.gz`/`squeak22.image`
+(the official `Squeak2.2` spelling is also accepted). The resolver checks this path
 automatically. Keep images out of Git; see
 [doc/guides/test-images.md](doc/guides/test-images.md) and
 [ADR-0002](doc/adr/ADR-0002-test-image-storage-and-discovery.md).
@@ -76,18 +76,18 @@ The Squeak 2.2 archive is available from:
 
 <https://files.squeak.org/2.2/>
 
-Use the `.image.gz` form for now. Raw `.image` support is planned separately; the
-launcher rejects raw images with a clear message. `SqueakV2.sources` and the
-matching `.changes` file are optional for booting, but placing them next to the
-selected image enables source browsing and the debugger.
+Raw `.image` / `.IMA` and gzip `.image.gz` are both accepted; the loader detects
+the container by magic bytes. `SqueakV2.sources` and the matching `.changes`
+file are optional for booting, but placing them next to the selected image
+enables source browsing and the debugger.
 
 **Primitive 97 saves next to the selected image**, keeping the previous file as
-`<name>.bak`. For example, selecting `/data/squeak/squeak22.image.gz` writes
-`/data/squeak/squeak22.image.gz` and `/data/squeak/squeak22.image.gz.bak`.
-`Save as...` keeps the logical name entered in Squeak (for example
-`foobar.image`) and writes `foobar.image.gz` in the chosen location. The gzip
-layer is DodoTalk-specific, not a Squeak 2.2 requirement; see
-[doc/specifications/image/image-format.md](doc/specifications/image/image-format.md).
+`<name>.bak`. `save` keeps the current format: a gzip image stays `.image.gz`,
+a raw image stays `.image`. `Save as...` always writes a raw `<name>.image` (and
+copies `<name>.changes`), so it can be imported into SqueakJS or the original
+Squeak toolchain. The gzip layer is optional, not a Squeak 2.2 requirement; see
+[doc/specifications/image/image-format.md](doc/specifications/image/image-format.md)
+and [ADR-0006](doc/adr/ADR-0006-raw-gzip-image-compatibility.md).
 
 Squeak's `vmPath` points at the selected image's directory, so a user-supplied
 `SqueakV2.sources` and matching `.changes` file next to the image are found
@@ -100,7 +100,7 @@ directory next to the image; runtime statistics still go to the project's
 Runtime layout (external image directory):
 
 ```text
-/path/to/image/   selected .image.gz, optional .changes and SqueakV2.sources
+/path/to/image/   selected .image/.image.gz/.IMA, optional .changes and SqueakV2.sources
 logs/             project runtime-statistics log
 ```
 
@@ -110,7 +110,7 @@ With the improvements in DodoTalk, it can load and run a full Squeak 2.2 image s
 
 ### Notable changes / improvements:
 * No Squeak image is bundled. `./gradlew run` opens a small Swing launcher
-  for selecting a user-supplied `*.image.gz`; `-image <path>` still boots
+  for selecting a user-supplied raw or gzip image; `-image <path>` still boots
   directly for scripts and automation. `vmPath` follows the selected image
   directory, so sources/changes can stay next to the image.
 * Fix floating-point number issue. Now DodoTalk can read floating-point numbers from image file correctly.
@@ -138,10 +138,11 @@ With the improvements in DodoTalk, it can load and run a full Squeak 2.2 image s
 * Clipboard features (copy/cut/paste).
 * Image saving: Primitive 97 snapshots the current object memory atomically next
   to the selected image, keeping the previous file as `.bak`. `Save as...` keeps
-  the logical name (for example `foobar.image`) and writes `foobar.image.gz`.
+  the logical name (for example `foobar.image`) and writes a raw
+  `foobar.image`; raw/gzip detection is by magic bytes.
   The launcher does not copy a Squeak image into the repository. Squeak debugger
   stacks are written to `logs/` next to the selected image. The gzip wrapper is
-  DodoTalk-specific; see [doc/specifications/image/image-format.md](doc/specifications/image/image-format.md).
+  optional; see [doc/specifications/image/image-format.md](doc/specifications/image/image-format.md).
 * Sound shutdown is currently a tracked no-op stub (Primitive 172), so image
   snapshot is not blocked by the not-yet-ported sound subsystem.
 * `Alt+.` (`cmd-.`) now interrupts a busy image, Primitive 133 can change the
@@ -170,7 +171,7 @@ I'm planning to add more improvements to this project:
 - [doc/plans/next-iteration-priorities.md](doc/plans/next-iteration-priorities.md) — current prioritized roadmap
 - [doc/specifications/runtime/diagnostics.md](doc/specifications/runtime/diagnostics.md) — `-PsqueakStats=true` output and interpretation
 - [doc/plans/plan.md](doc/plans/plan.md) — phased maintenance plan
-- [doc/specifications/image/image-format.md](doc/specifications/image/image-format.md) — image format and gzip wrapper
+- [doc/specifications/image/image-format.md](doc/specifications/image/image-format.md) — raw/gzip image format and save semantics
 - [doc/archives/report_20260913.md](doc/archives/report_20260913.md) — historical deep-dive analysis
 
 ## Other derivative/fork of JSqueak

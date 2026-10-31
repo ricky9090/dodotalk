@@ -71,8 +71,8 @@ public final class LaunchOptions {
                 "       dodotalk -image IMAGE",
                 "       dodotalk --help",
                 "",
-                "IMAGE must be a gzip-compressed Squeak image (*.image.gz).",
-                "With no arguments, a file chooser is shown.",
-                "Raw .image files are not supported yet.");
+                "IMAGE may be a raw Squeak image (*.image, *.IMA) or gzip-compressed"
+                        + " (*.image.gz).",
+                "With no arguments, a file chooser is shown.");
     }
 }

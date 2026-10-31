@@ -4,10 +4,7 @@ import javax.swing.filechooser.FileFilter;
 import java.io.File;
 
 /**
- * File chooser filter for gzip-compressed Squeak images.
- * <p>
- * Raw {@code .image} files are intentionally rejected until raw/gzip sniffing
- * is implemented.
+ * File chooser filter for raw and gzip-compressed Squeak images.
  */
 final class SqueakImageFileFilter extends FileFilter {
 
@@ -24,6 +21,6 @@ final class SqueakImageFileFilter extends FileFilter {
 
     @Override
     public String getDescription() {
-        return "Squeak image (*.image.gz)";
+        return "Squeak image (*.image, *.image.gz, *.IMA)";
     }
 }

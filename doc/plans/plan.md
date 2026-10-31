@@ -2,7 +2,7 @@
 
 > 基于代码深度分析制定的分阶段改进路线图
 >
-> **状态（2026-10-30）**：Phase 1 的 1.1-1.9 已完成；Phase 1.5 的 1.10-1.14 已完成，输入可靠性已人工验收通过。Phase 1.6 已完成：1.15 数值/字符串原语纠错、1.16 映像保存安全、1.17 `cmd-.` 中断、1.18 运行时诊断均已落地。Sprint 2（显示刷新、流原语、GC 绑定）已完成。Sprint 3 的 Primitive 103 `scanCharacters`、Primitive 96 `copyBits` 诊断与 tally 栈效果修复、MVC 弹窗轮询限速与支持文件提示已完成。仓库已移除内置 image，改用 GUI 启动器/`-image` 选择用户提供的 `*.image.gz`；当前 205 个测试（无 image 时 64 个集成测试跳过）。CI 接入标记为重要但低优先级，单人维护阶段暂缓。
+> **状态（2026-10-31）**：Phase 1 的 1.1-1.9 已完成；Phase 1.5 的 1.10-1.14 已完成，输入可靠性已人工验收通过。Phase 1.6 已完成：1.15 数值/字符串原语纠错、1.16 映像保存安全、1.17 `cmd-.` 中断、1.18 运行时诊断均已落地。Sprint 2（显示刷新、流原语、GC 绑定）已完成。Sprint 3 的 Primitive 103 `scanCharacters`、Primitive 96 `copyBits` 诊断与 tally 栈效果修复、MVC 弹窗轮询限速、raw/gzip 映像兼容与快照上下文修复已完成。仓库已移除内置 image，启动器/`-image` 接受 raw `.image`、`.IMA` 和 gzip `.image.gz`；当前 218 个测试（无 image 时 64 个集成测试跳过）。SqueakJS 1.3.3 人工交叉验证已通过。CI 接入标记为重要但低优先级，单人维护阶段暂缓。
 
 ---
 
@@ -184,7 +184,7 @@
 | 3.3 | 声音原语核心集（170/172/174） | `primitives/SoundPrimitives.java` | `SoundPlayer` 可播放简单采样 |
 | 3.4 | 文件原语完善 | `core/FileSystemPrimitives.java` | 支持非 SmallInt 位置/大小，支持非字节数组 |
 | 3.5 | 网络原语骨架（200-229） | `primitives/NetworkPrimitives.java` | Socket create/connect/read/write 基础通路通 |
-| 3.6 | 原版 Squeak 映像格式兼容 | `core/SqueakImage.java` | 支持 raw `.image` / gzip 双格式读写与 magic sniffing；与原版 Squeak 2.2 交叉验证；见 [映像格式规范](../specifications/image/image-format.md) / [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md) |
+| 3.6 | **已完成** 原版 Squeak 映像格式兼容 | `core/SqueakImage.java` | raw `.image` / gzip 双格式读写与 magic sniffing；Save As 固定 raw；SqueakJS 1.3.3 人工交叉验证通过；见 [映像格式规范](../specifications/image/image-format.md) / [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md) / [ADR-0006](../adr/ADR-0006-raw-gzip-image-compatibility.md) |
 
 ### 产出
 - 完整的原语分类包
@@ -284,7 +284,7 @@ Week 24+   : Phase 5 按需推进
 2. **已完成** Primitive 96 `copyBits` 失败诊断与 tally 栈修复（见 `ISSUE-0002` / `DESIGN-0002`、`ISSUE-0003` / `DESIGN-0003`）；确认压缩 Form 回退并修正 rule 22/32 弹出个数
 3. **已完成** MVC 弹窗轮询限速与支持文件提示（见 `ISSUE-0004` / `DESIGN-0004` / `ADR-0003`）；缺 sources/changes 时不再满核
 4. 全屏/缩放/光标策略：实现或明确固定尺寸并删除死代码
-5. 快照与原版 Squeak 2.2 交叉验证；评估 raw `.image`
+5. **已完成** raw/gzip 映像兼容；SqueakJS 1.3.3 人工交叉验证通过
 6. 原语正常/失败路径测试网；CI 接入保持低优先级
 
 ---

@@ -22,7 +22,7 @@
 
 | 文档 | 内容 | 主要代码 |
 |------|------|----------|
-| [映像格式与 gzip 封装](image/image-format.md) | 映像命名、gzip 封装、保存/另存、vmPath、支持文件 | `SqueakImage`、`Starter` |
+| [映像格式：raw 与 gzip](image/image-format.md) | 映像命名、raw/gzip 检测、保存/另存、vmPath、支持文件 | `SqueakImage`、`Starter` |
 
 ### Runtime
 

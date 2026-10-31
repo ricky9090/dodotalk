@@ -124,7 +124,8 @@ public class ObjectMemory {
     public SqueakObject nextInstance(int startingIndex, SqueakObject sqClass) {
         //if sqClass is null, then find next object, else find next instance of sqClass
         final int length = objectTable.size();
-        for (int i = startingIndex; i < length; i++) {
+        int start = Math.max(0, startingIndex);
+        for (int i = start; i < length; i++) {
             // For every object...
             SqueakObject obj = (SqueakObject) objectTable.get(i).get();
             if (obj != null && (sqClass == null | obj.sqClass == sqClass)) {
@@ -136,20 +137,25 @@ public class ObjectMemory {
     }
 
     public int otIndexOfObject(SqueakObject lastObj) {
-        // hint: lastObj should be at lastObjectIndex
-        SqueakObject obj = (SqueakObject) objectTable.get(lastObjectIndex).get();
-        if (obj == lastObj) {
-            return lastObjectIndex;
-        } else {
-            final int length = objectTable.size();
-            for (int i = 0; i <= length; i++) {
-                // Alas no; have to find it again...
-                obj = (SqueakObject) objectTable.get(i).get();
-                if (obj == lastObj)
-                    return i;
+        final int length = objectTable.size();
+
+        // lastObjectIndex is only a hint. GC may compact objectTable after the
+        // hint was recorded, so never use it without a bounds check.
+        if (lastObjectIndex >= 0 && lastObjectIndex < length) {
+            SqueakObject obj = (SqueakObject) objectTable.get(lastObjectIndex).get();
+            if (obj == lastObj) {
+                return lastObjectIndex;
             }
         }
-        return -1;  //should not happen
+        // Alas no; have to find it again...
+        for (int i = 0; i < length; i++) {
+            SqueakObject obj = (SqueakObject) objectTable.get(i).get();
+            if (obj == lastObj) {
+                lastObjectIndex = i;
+                return i;
+            }
+        }
+        return -1;  // object is no longer in the table
     }
 
     public short registerObject(SqueakObject obj) {
@@ -221,6 +227,8 @@ public class ObjectMemory {
         if (writePtr < size) {
             objectTable.subList(writePtr, size).clear();
         }
+        // Compaction changes indices, so any previous enumeration hint is stale.
+        lastObjectIndex = -1;
 
         return objectTable.size();
     }

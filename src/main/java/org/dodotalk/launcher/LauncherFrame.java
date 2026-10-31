@@ -83,7 +83,8 @@ public final class LauncherFrame extends JFrame {
 
         JLabel notice = new JLabel("<html>"
                 + "This launcher does not include a Squeak image.<br>"
-                + "Select a gzip-compressed Squeak image (<code>*.image.gz</code>) "
+                + "Select a raw or gzip-compressed Squeak image "
+                + "(<code>*.image</code>, <code>*.image.gz</code>, <code>*.IMA</code>) "
                 + "that you are licensed to use.<br>"
                 + "Snapshots are written next to the selected image; the previous "
                 + "image is kept as <code>.bak</code>."
@@ -284,6 +285,12 @@ public final class LauncherFrame extends JFrame {
      * Kept package-private for a small unit test of the accepted file names.
      */
     static boolean isSupportedImageName(String name) {
-        return name != null && name.toLowerCase(Locale.ROOT).endsWith(".image.gz");
+        if (name == null) {
+            return false;
+        }
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".image")
+                || lower.endsWith(".image.gz")
+                || lower.endsWith(".ima");
     }
 }

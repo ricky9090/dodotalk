@@ -55,11 +55,10 @@ public final class TestImages {
     public static final String DEFAULT_IMAGE_DIRECTORY = "temp/test-images";
 
     /**
-     * Raw {@code .image} loading is not implemented yet. Until it is, a raw
-     * image found by the resolver is reported as a skip instead of letting the
-     * gzip-only loader fail.
+     * Raw {@code .image} loading is supported; the loader detects the container
+     * by magic bytes, so both raw and gzip test images are accepted.
      */
-    static final boolean RAW_IMAGE_SUPPORTED = false;
+    static final boolean RAW_IMAGE_SUPPORTED = true;
 
     private static final Set<String> announcedImages = new LinkedHashSet<>();
 
@@ -102,8 +101,7 @@ public final class TestImages {
         if (!RAW_IMAGE_SUPPORTED && file.getName().toLowerCase().endsWith(".image")) {
             Assumptions.assumeTrue(false,
                     "Found raw image " + file.getAbsolutePath()
-                            + " but raw .image loading is not implemented yet. "
-                            + "Use a .image.gz instead.");
+                            + " but raw .image loading is disabled.");
         }
     }
 

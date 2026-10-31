@@ -1,8 +1,8 @@
 # DodoTalk 下一迭代高优方向
 
-> 日期：2026-10-30（MVC 弹窗轮询限速与支持文件提示完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（205 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速已落地。
+> 日期：2026-10-31（raw/gzip 映像兼容与快照上下文修复完成后更新）
+> 依据：当前代码审查、`./gradlew clean test`（218 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
 
@@ -11,7 +11,7 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 205 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像、对象、上下文、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
+| 测试 | 218 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz`；Primitive 97 可保存并重新加载 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
@@ -95,7 +95,7 @@
 - 输入等待的 `InterruptedException` catch 不再重新置位 Java 中断标志，避免一次
   中断永久破坏鼠标/键盘限速。
 - 修饰键本身不再进入 typeahead；中断键 `Alt+.` 行为不变。
-- 新增 8 个测试，当前共 205 个测试通过。
+- 新增 8 个测试；当时共 205 个测试通过。
 
 ### P1-3：全屏/窗口缩放/光标
 
@@ -105,13 +105,29 @@
 - 需要先决定策略：实现全屏+缩放，还是长期保持固定尺寸并删除死代码。
 - 验收：不出现假成功；行为有明确文档。
 
-### P1-4：映像可移植性
+### P1-4（已完成）：映像可移植性
 
-- 仓库已移除内置 Squeak image；用户通过启动器或 `-image` 提供 `.image.gz`。
-- DodoTalk 保存的 `.image.gz` 尚未与原版 Squeak 2.2 交叉验证。
-- 仍不支持 raw `.image`；GUI 只接受 `.image.gz`，原版工具链无法直接打开 DodoTalk 快照。
-- 需要 raw/gzip 识别、raw 写入路径和交叉验证，详见 `doc/specifications/image/image-format.md` 和 [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md)。
-- 这是数据可移植性任务，建议放在 Sprint 3。
+- 仓库已移除内置 Squeak image；启动器/`-image` 现在接受 raw `.image`、
+  `.IMA` 和 gzip `.image.gz`，读取按 magic bytes 判断。
+- DodoTalk 的 `save` 保持当前格式；`Save As` 固定生成 raw `.image`。
+- 已修复运行中保存导致活动进程上下文/恢复栈顶异常、对象表枚举越界，以及
+  SqueakJS 首个对象地址不兼容。
+- 自动测试覆盖 raw/gzip 往返、magic sniff、Save As raw、活动上下文保存、
+  恢复栈顶和 GC 后枚举。
+- 人工验收已通过：Transcript 中 `1 + 1` 与窗口状态在 Save/Save As 后均恢复；
+  `.image.gz` 和 `.image` 都能启动；raw `.image` 可导入 SqueakJS 1.3.3。
+- 详见 [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md) /
+  [ADR-0006](../adr/ADR-0006-raw-gzip-image-compatibility.md)。
+
+### P1-7（下一迭代候选）：Launcher 运行时参数
+
+- 现有诊断开关依赖 `-PsqueakStats`、`-PsqueakDebug` 等 Gradle 属性，人工验证时
+  组合较长。
+- 计划在 Launcher 增加默认折叠的 Advanced 面板，配置 RuntimeStats、debug 日志、
+  对象 dump、primitive failure 日志和普通日志。
+- 参数通过 `LaunchSettings` 在 VM 创建前应用，保持现有命令行/系统属性兼容。
+- 详见 [ISSUE-0007](../issues/ISSUE-0007-launcher-runtime-options.md) /
+  [DESIGN-0007](../design/DESIGN-0007-launcher-runtime-options.md)。
 
 ### P1-5：原语测试网
 
@@ -154,10 +170,11 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 205；
+4. `./gradlew clean test` 全绿，测试数不低于当前 218；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论
 
-96、103 与 MVC 弹窗轮询限速已完成，接下来处理 **全屏/缩放/光标策略**，
-同时做快照交叉验证和原语测试网；CI 与声音/网络继续后置。
+96、103、MVC 弹窗轮询限速、raw/gzip 映像兼容与 SqueakJS 1.3.3 交叉验证已完成。
+接下来优先补 Launcher 运行时参数、原语测试网和全屏/缩放/光标策略；
+CI 与声音/网络继续后置。

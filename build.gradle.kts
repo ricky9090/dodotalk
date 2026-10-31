@@ -77,6 +77,8 @@ tasks.register("checkNoSqueakImages") {
                     name.endsWith(".image.gz", ignoreCase = true) ||
                     name.endsWith(".image.bak", ignoreCase = true) ||
                     name.endsWith(".image.gz.bak", ignoreCase = true) ||
+                    name.endsWith(".ima", ignoreCase = true) ||
+                    name.endsWith(".ima.bak", ignoreCase = true) ||
                     name.endsWith(".changes", ignoreCase = true) ||
                     name.equals("SqueakV2.sources", ignoreCase = true)
         }

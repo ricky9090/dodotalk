@@ -21,7 +21,7 @@ block context does not refer to a valid home context: a BlockContext
 ## 2. 原理
 
 1. **加载映像**
-   - 使用 `SqueakImage` + `SqueakVM` 加载用户提供的 `.image.gz`。
+   - 使用 `SqueakImage` + `SqueakVM` 加载用户提供的 raw 或 gzip 映像。
    - 不打开 Swing 窗口，不执行正常启动流程。
 
 2. **遍历对象表**

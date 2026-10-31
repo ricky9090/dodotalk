@@ -984,7 +984,7 @@ public class SqueakPrimitiveHandler {
      */
     private void primitiveSnapshot() {
         try {
-            SqueakVM.image.save(SqueakVM.image.imageFile());
+            SqueakVM.image.save(SqueakVM.image.imageFile(), true);
         } catch (IOException e) {
             context.success = false;
             SqueakLogger.log_E("Failed to save the image to "
@@ -2602,7 +2602,11 @@ public class SqueakPrimitiveHandler {
     }
 
     private Object primitiveNextObject(SqueakObject priorObject) {
-        SqueakObject nextObject = SqueakVM.objectMemory.nextInstance(SqueakVM.objectMemory.otIndexOfObject(priorObject) + 1, null);
+        int priorIndex = SqueakVM.objectMemory.otIndexOfObject(priorObject);
+        if (priorIndex < 0) {
+            return InterpreterHelper.smallFromInt(0);
+        }
+        SqueakObject nextObject = SqueakVM.objectMemory.nextInstance(priorIndex + 1, null);
         if (nextObject == SqueakVM.nilObj) {
             return InterpreterHelper.smallFromInt(0);
         }
@@ -2611,7 +2615,11 @@ public class SqueakPrimitiveHandler {
 
     private SqueakObject primitiveNextInstance(SqueakObject priorInstance) {
         SqueakObject sqClass = (SqueakObject) priorInstance.sqClass;
-        return SqueakVM.objectMemory.nextInstance(SqueakVM.objectMemory.otIndexOfObject(priorInstance) + 1, sqClass);
+        int priorIndex = SqueakVM.objectMemory.otIndexOfObject(priorInstance);
+        if (priorIndex < 0) {
+            return SqueakVM.nilObj;
+        }
+        return SqueakVM.objectMemory.nextInstance(priorIndex + 1, sqClass);
     }
 
     //  region more-primitive-for-squeak

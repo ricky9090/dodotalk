@@ -77,9 +77,9 @@ public class Starter {
     }
 
     /**
-     * Validates a user-supplied image path. This release supports only
-     * gzip-compressed {@code .image.gz} files; raw image support is planned
-     * separately.
+     * Validates a user-supplied image path. Both raw {@code .image} /
+     * {@code .IMA} files and gzip-compressed {@code .image.gz} files are
+     * accepted; the actual container is detected by magic bytes.
      */
     public static File validateImageFile(File imageFile) throws IOException {
         if (imageFile == null) {
@@ -92,8 +92,10 @@ public class Starter {
         if (!file.canRead()) {
             throw new IOException("Image file is not readable: " + file);
         }
-        if (!file.getName().toLowerCase(Locale.ROOT).endsWith(".image.gz")) {
-            throw new IOException("Only gzip-compressed .image.gz images are supported");
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        if (!name.endsWith(".image") && !name.endsWith(".image.gz")
+                && !name.endsWith(".ima")) {
+            throw new IOException("Expected a Squeak .image, .image.gz or .IMA file");
         }
         return file;
     }

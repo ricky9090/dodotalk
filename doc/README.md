@@ -47,13 +47,17 @@
 | [ISSUE-0002](issues/ISSUE-0002-primitive-96-copybits-failures.md) | Primitive 96 copyBits 失败诊断与压缩 Form 回退 | done | [DESIGN-0002](design/DESIGN-0002-primitive-96-copybits-failures.md) |
 | [ISSUE-0003](issues/ISSUE-0003-primitive-96-tally-stack-underflow.md) | Primitive 96 tally 规则破坏 BlockContext home | done | [DESIGN-0003](design/DESIGN-0003-primitive-96-tally-stack-underflow.md) |
 | [ISSUE-0004](issues/ISSUE-0004-mvc-popup-polling-cpu.md) | 缺少 sources/changes 时 MVC 弹窗导致 CPU 满载 | done | [DESIGN-0004](design/DESIGN-0004-mvc-popup-polling-cpu.md) |
-| [ISSUE-0005](issues/ISSUE-0005-raw-image-format-support.md) | 支持原版 Squeak raw `.image` 格式 | deferred | — |
+| [ISSUE-0005](issues/ISSUE-0005-raw-image-format-support.md) | 支持原版 Squeak raw `.image` 格式与快照交叉验证 | done | [DESIGN-0005](design/DESIGN-0005-raw-image-format-support.md) |
 | [ISSUE-0006](issues/ISSUE-0006-keyboard-poll-throttle-and-interrupt-flag.md) | 键盘空闲轮询限速与中断标志修复 | done | [DESIGN-0006](design/DESIGN-0006-keyboard-poll-throttle-and-interrupt-flag.md) |
+| [ISSUE-0007](issues/ISSUE-0007-launcher-runtime-options.md) | Launcher 运行时参数配置 | discussing | [DESIGN-0007](design/DESIGN-0007-launcher-runtime-options.md) |
 
 当前 ADR：[ADR-0003](adr/ADR-0003-mouse-polling-throttle.md) 将 MVC 空闲鼠标
 轮询限制在 250Hz（关联 ISSUE-0004 / DESIGN-0004）；[ADR-0005](adr/ADR-0005-input-poll-throttle-keyboard.md)
 把同一策略扩展到键盘原语 108/109（关联 ISSUE-0006 / DESIGN-0006）；
-[ADR-0004](adr/ADR-0004-documentation-taxonomy.md) 确定
+[ADR-0006](adr/ADR-0006-raw-gzip-image-compatibility.md) 确定 raw/gzip 映像兼容
+与 Save As 固定 raw（关联 ISSUE-0005 / DESIGN-0005）；
+[ADR-0007](adr/ADR-0007-raw-test-image-discovery.md) 更新测试映像发现以同时支持
+raw/gzip；[ADR-0004](adr/ADR-0004-documentation-taxonomy.md) 确定
 `specifications/`、`guides/`、`plans/` 的文档分层。
 
 ## 5. 模板

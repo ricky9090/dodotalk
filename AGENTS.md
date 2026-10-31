@@ -14,15 +14,15 @@ The Java package is `org.dodotalk`.
 
 - **Default entrypoint**: `org.dodotalk.Main`.
 - **No arguments**: `./gradlew run` opens the Swing image chooser (`org.dodotalk.launcher.LauncherFrame`). The repository does **not** bundle a Squeak image.
-- **Direct image**: `./gradlew run --args="-image /path/to/squeak.image.gz"` or `./gradlew run --args="/path/to/squeak.image.gz"` boots without the chooser.
+- **Direct image**: `./gradlew run --args="-image /path/to/squeak.image.gz"` or `./gradlew run --args="/path/to/squeak.image.gz"` boots without the chooser. Raw `.image` / `.IMA` paths work the same way.
 - **Help**: `./gradlew run --args="--help"`.
-- **Gzip only**: this release accepts `*.image.gz`; raw `.image` support is a follow-up task.
+- **Accepted formats**: raw `.image`, `.IMA`, and gzip `.image.gz`; the loader detects the container by magic bytes.
 - **Tests**: the image-dependent integration tests require user-supplied images; see **Tests** below.
 
 ## Key Configuration
 
 - No image resource path is compiled into the application. The image is supplied at runtime.
-- `Starter.validateImageFile(File)` rejects missing, unreadable, raw, and non-`.image.gz` files.
+- `Starter.validateImageFile(File)` accepts existing/readable `.image`, `.image.gz`, or `.IMA` files and rejects unknown extensions.
 - `SqueakImage.runtimeDirectory()` is the selected image's parent directory; it is used as Squeak's `vmPath`, so `SqueakV2.sources` and the matching `.changes` file are found next to the image.
 - Logging is configured through system properties; see **Logging / Debugging** below. Debug output is off by default.
 
@@ -88,24 +88,24 @@ The Java package is `org.dodotalk`.
 
 ## Important Quirks
 
-- **Image loading**: `SqueakImage.loaded()` reads gzip-compressed binary image files. The image is supplied by the user through the launcher or `-image`; no image is bundled. Only `*.image.gz` is accepted in this release.
+- **Image loading**: `SqueakImage.loaded()` detects gzip (`1f 8b`) versus raw by magic bytes. The image is supplied by the user through the launcher or `-image`; no image is bundled. Raw `.image`, `.IMA`, and gzip `.image.gz` are accepted; the extension is only advisory.
 - **Bytecodes**: 0-255 mapped to executors in `SqueakVM.bytecodeTable[256]`. New bytecodes require updating both the table and `doc/specifications/vm/bytecode-table.md`.
 - **Primitives**: 250+ primitives indexed by number (see `doc/specifications/vm/primitive-table.md`). Primitive failures trigger `doesNotUnderstand:`.
-- **Tests**: JUnit 5 tests live under `src/test/java`; run them with `./gradlew test`. Gradle sets `java.awt.headless=true` for tests. Image-dependent integration tests are skipped unless `JSQUEAK_TEST_MINI_IMAGE` and/or `JSQUEAK_TEST_FULL_IMAGE` point to user-supplied `.image.gz` files, or the files are found in `../temp/test-images/` (outside the repository). Do not add Squeak images to `src/test/resources`; see `doc/guides/test-images.md`.
+- **Tests**: JUnit 5 tests live under `src/test/java`; run them with `./gradlew test`. Gradle sets `java.awt.headless=true` for tests. Image-dependent integration tests are skipped unless `JSQUEAK_TEST_MINI_IMAGE` and/or `JSQUEAK_TEST_FULL_IMAGE` point to user-supplied raw or gzip images, or the files are found in `../temp/test-images/` (outside the repository). Do not add Squeak images to `src/test/resources`; see `doc/guides/test-images.md`.
 - **Single-threaded VM**: `SqueakVM` uses static global state (`SqueakVM.INSTANCE`). Not thread-safe.
 - **SmallInts**: 31-bit integers (`minSmallInt = -0x40000000`, `maxSmallInt = 0x3FFFFFFF`). Integer overflow uses the `nonSmallInt` sentinel.
 - **Input reliability**: `InputEventLatch` provides monotonic wakeups; `MouseStatus` queues press/release transitions so short clicks are not lost. MVC idle polling of Primitive 90/107 is capped at 250Hz (`MouseStatus.POLL_RATE_HZ`); Primitive 108/109 use the same cap (`KeyboardQueue.POLL_RATE_HZ`) so keyboard busy-waits such as `[Sensor keyboardPressed] whileFalse` cannot peg a CPU core. Mouse/key events wake a waiting poll immediately. Input wait catches clear rather than re-arm the Java interrupt flag, so one interruption cannot permanently disable throttling; a future VM-wide stop flag is still pending. Manually verified in a real window on 2026-10-24; the MVC popup CPU fix is `ISSUE-0004`, and the keyboard/interrupt extension is `ISSUE-0006`. See `doc/specifications/runtime/input-model.md`.
 - **File primitives**: 150–160 and 162 are wired to `FileSystemPrimitives`; 163–169 remain stubs. `imageName`/`vmPath`/path delimiter now use real platform paths.
 - **Timer responsiveness**: the interrupt feedback counter is bounded and `primitiveYield` forces an interrupt check; see `doc/archives/freeze-analysis-2026-10-24.md`.
-- **Image snapshots**: `SqueakImage.save(File)` writes to a temporary file, fsyncs, keeps the previous image as `<name>.bak`, and atomically replaces the target. The launcher boots the selected image directly; Primitive 97 saves next to it. `Save as...` keeps the logical name (for example `foobar.image`) and writes `foobar.image.gz`; Primitive 121 sets the logical name, Primitive 97 leaves `falseObj` on success (Squeak's `resuming` flag). `vmPath` is the selected image's parent, so user-supplied `SqueakV2.sources` / `.changes` next to the image are found; nothing is copied from classpath resources. Squeak debugger stacks go to a `logs/` directory next to the image; runtime statistics go to the project `logs/runtime-stats.log` when enabled.
+- **Image snapshots**: `SqueakImage.save(File)` writes to a temporary file, fsyncs, keeps the previous image as `<name>.bak`, and atomically replaces the target. The launcher boots the selected image directly; Primitive 97 saves next to it. `save` keeps the current physical format (gzip stays gzip, raw stays raw); `Save as...` always writes a raw `<name>.image` and copies changes. Primitive 121 sets the logical name, Primitive 97 leaves `falseObj` on success (Squeak's `resuming` flag). The writer temporarily records the active process's current context before serialization so saved images can restart. `vmPath` is the selected image's parent, so user-supplied `SqueakV2.sources` / `.changes` next to the image are found; nothing is copied from classpath resources. Squeak debugger stacks go to a `logs/` directory next to the image; runtime statistics go to the project `logs/runtime-stats.log` when enabled.
 - **Optional support files**: Missing `SqueakV2.sources` / `<image>.changes` is non-fatal. `Starter.supportFileWarnings()` logs a `[W]` warning and the launcher shows the status before boot. The image still displays its own MVC popup, but Primitive 90/107 (and keyboard 108/109) polling is capped at 250Hz so the popup cannot peg a CPU core; see `ISSUE-0004` / `ADR-0003` / `ISSUE-0006` / `ADR-0005`.
-- **gzip is DodoTalk-specific**: Squeak 2.2 writes raw `.image` data; DodoTalk currently reads/writes gzip only. The launcher intentionally accepts only `*.image.gz`. Supporting original raw Squeak images requires magic sniffing and a raw write path; see `doc/specifications/image/image-format.md`.
+- **gzip is optional**: Squeak 2.2 writes raw `.image` data; DodoTalk also supports a gzip wrapper. Read is magic-based; Save keeps the current format; Save As produces raw `.image`. See `doc/specifications/image/image-format.md` and `ADR-0006`.
 - **Interrupt key**: `Alt+.` (`cmd-.`, Squeak keycode `2094`) is consumed by `KeyboardQueue` and raises `interruptPending`; Primitive 133 lets the image change the key. `checkForInterrupts` signals `TheInterruptSemaphore` at the next send/backward jump. Automated coverage and real-window acceptance both passed; see `doc/specifications/runtime/input-model.md`. Runtime statistics go to stdout and `logs/runtime-stats.log`; normal window close uses exit code 0.
 
 ## Known Gaps / Next Priorities
 
 - **CI intentionally deferred**: there is no `.github/workflows`. CI is important but low priority while the project is maintained by a single developer; the current gate is local `./gradlew clean test` plus manual smoke testing. Revisit when collaboration or release cadence requires it. See `doc/plans/next-iteration-priorities.md`.
-- **Snapshot format validation**: atomic saving and reload are covered by tests, but saved images have not been cross-validated against the original Squeak 2.2 VM.
+- **Snapshot format validation**: atomic save/reload, running-process context/resume-result preservation, raw/gzip round-trips, and the SqueakJS-compatible leading object are covered by tests. SqueakJS 1.3.3 manual cross-validation passed on 2026-10-31 (Save/Save As, both formats, state restoration); native Squeak 2.2 remains optional.
 - **Partial primitive coverage**: many advanced integer, stream, sound and network primitives still fail. `-PsqueakStats=true` reports a failure histogram classified as unimplemented/failed/exception/intentional; use it before choosing the next primitive. 65–67, 103 (`scanCharacters`), 127, 140, 231 and 235 are now implemented. The remaining 96 (`copyBits`) and 103 startup FAILED entries are compressed source/destination Forms; the image's `BitBlt>>copyBits` fallback calls `unhibernate` and retries, so this is expected (see `ISSUE-0002`). Tally rules 22/32 now pop `argCount + 1`, so a 0-argument `copyBits` no longer overwrites `BlockContext_home` (see `ISSUE-0003`). Primitive 172 (`primSoundStop`) is intentionally a tracked no-op stub (`NO_OP_STUB_PRIMITIVES`) so snapshot shutdown can complete; see `SqueakPrimitiveHandler`.
 - **Global VM state**: `SqueakVM.INSTANCE` and `SqueakVM.objectMemory` are static, so multiple VM instances are not supported.
 - **Display**: 1/2/4/8/16/32-bit depths are supported and Swing access is confined to the EDT. Dirty rectangles are merged and only dirty areas repaint; `deferUpdates`, `forceDisplayUpdate` (231) and `showDisplayRect` (127) are implemented. User window resizing is temporarily disabled; display-size changes must come from the image (`beDisplay`/restore display). Primitive 233 full screen now fails explicitly instead of reporting fake success. See `doc/specifications/runtime/display-model.md`.
@@ -117,7 +117,7 @@ The Java package is `org.dodotalk`.
 
 - Do not add a Squeak image, `SqueakV2.sources`, a Squeak `.changes` file, or a Squeak screenshot to this repository. They are not MIT-licensed; see `THIRD_PARTY_NOTICES.md`. For local tests, keep images outside the repository at `../temp/test-images/`; do not place them under the project directory (including `temp/`).
 - Do not make the launcher or `Main` run the VM on the Swing event dispatch thread; `Screen.open()` performs EDT work and will deadlock.
-- Do not attempt to modify image files without understanding the gzip + custom binary format in `SqueakImage.readImage()`.
+- Do not attempt to modify image files without understanding the raw/gzip container detection and custom binary format in `SqueakImage.readImage()`.
 - Do not bypass Gradle to compile into `out/`; use `./gradlew`.
 - Do not edit generated files under `build/`.
 - Do not delete `gradle/wrapper/gradle-wrapper.jar`; it is required for `./gradlew`.

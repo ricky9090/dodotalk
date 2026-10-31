@@ -8,11 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LauncherFrameTest {
 
     @Test
-    void acceptsOnlyGzipImageNames() {
+    void acceptsRawAndGzipImageNames() {
         assertTrue(LauncherFrame.isSupportedImageName("squeak.image.gz"));
         assertTrue(LauncherFrame.isSupportedImageName("SQUEAK.IMAGE.GZ"));
-        assertFalse(LauncherFrame.isSupportedImageName("squeak.image"));
+        assertTrue(LauncherFrame.isSupportedImageName("squeak.image"));
+        assertTrue(LauncherFrame.isSupportedImageName("SQUEAK.IMA"));
         assertFalse(LauncherFrame.isSupportedImageName("squeak.gz"));
+        assertFalse(LauncherFrame.isSupportedImageName("squeak.txt"));
         assertFalse(LauncherFrame.isSupportedImageName(null));
     }
 }

@@ -39,7 +39,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.ref.WeakReference;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -172,7 +171,12 @@ public class SqueakImage {
     }
 
     /**
-     * Writes a compressed image atomically.
+     * Writes an image atomically.
+     * <p>
+     * The physical target extension selects the container: {@code .gz} writes
+     * gzip, every other target writes a raw Squeak image. Squeak's built-in
+     * Save As always constructs {@code <name>.image}, so Save As creates raw
+     * images; a gzip-loaded image keeps gzip when saved in place.
      * <p>
      * The new image is written to a temporary file in the target directory,
      * flushed to disk, then moved into place with an atomic rename. The old
@@ -180,6 +184,15 @@ public class SqueakImage {
      * destroys the last good snapshot.
      */
     public void save(File fn) throws IOException {
+        save(fn, false);
+    }
+
+    /**
+     * Writes an image. {@code markResume} is set by Primitive 97 so the saved
+     * context has the boolean result that Squeak expects when the snapshot is
+     * resumed; ordinary/test saves leave the current stack untouched.
+     */
+    void save(File fn, boolean markResume) throws IOException {
         Objects.requireNonNull(fn, "fn");
 
         Path target = fn.toPath().toAbsolutePath().normalize();
@@ -196,7 +209,11 @@ public class SqueakImage {
 
         SqueakLogger.log_I("Saving image to: " + target);
         try {
-            writeCompressedImage(temp);
+            if (isGzipName(target)) {
+                writeCompressedImage(temp, markResume);
+            } else {
+                writeRawImage(temp, markResume);
+            }
 
             if (Files.exists(target)) {
                 if (!Files.isRegularFile(target)) {
@@ -223,18 +240,34 @@ public class SqueakImage {
         }
     }
 
-    private void writeCompressedImage(Path target) throws IOException {
+    private void writeCompressedImage(Path target, boolean markResume) throws IOException {
         try (FileOutputStream fos = new FileOutputStream(target.toFile());
              BufferedOutputStream bos = new BufferedOutputStream(fos);
              GZIPOutputStream gz = new GZIPOutputStream(bos);
              DataOutputStream ser = new DataOutputStream(gz)) {
-            writeImage(ser);
+            writeImage(ser, markResume);
             ser.flush();
             // Write the gzip trailer before forcing the bytes to disk.
             gz.finish();
             bos.flush();
             fos.getFD().sync();
         }
+    }
+
+    private void writeRawImage(Path target, boolean markResume) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(target.toFile());
+             BufferedOutputStream bos = new BufferedOutputStream(fos);
+             DataOutputStream ser = new DataOutputStream(bos)) {
+            writeImage(ser, markResume);
+            ser.flush();
+            bos.flush();
+            fos.getFD().sync();
+        }
+    }
+
+    private static boolean isGzipName(Path target) {
+        return target.getFileName() != null
+                && target.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".gz");
     }
 
     private static void moveIntoPlace(Path temp, Path target) throws IOException {
@@ -258,19 +291,18 @@ public class SqueakImage {
     /**
      * Sets the logical image name used for subsequent snapshots.
      * <p>
-     * Squeak passes a logical name such as {@code foobar.image}. DodoTalk stores
-     * image data gzip-compressed, so the physical snapshot target becomes
-     * {@code foobar.image.gz}. {@link #imageName()} still answers the logical
-     * name, keeping Squeak's changes-file derivation
+     * Squeak passes a logical name such as {@code foobar.image}. The physical
+     * target is exactly that name: Save As therefore writes a raw
+     * {@code foobar.image}, while a gzip-loaded image saved in place keeps its
+     * existing {@code .image.gz} target. {@link #imageName()} still answers the
+     * logical name, keeping Squeak's changes-file derivation
      * (baseNameFor(imageName) + ".changes") stable.
      */
     void setImageName(String name) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("image name must not be blank");
         }
-        boolean alreadyGzip = name.toLowerCase(Locale.ROOT).endsWith(".gz");
-        File target = alreadyGzip ? new File(name) : new File(name + ".gz");
-        imageFile = target.getAbsoluteFile();
+        imageFile = new File(name).getAbsoluteFile();
     }
 
     /**
@@ -290,10 +322,19 @@ public class SqueakImage {
         vm = theVM;
     }
 
-    private void loaded(InputStream raw) throws IOException {
-        BufferedInputStream fp = new BufferedInputStream(raw);
-        GZIPInputStream gz = new GZIPInputStream(fp);
-        DataInputStream ser = new DataInputStream(gz);
+    private void loaded(InputStream input) throws IOException {
+        BufferedInputStream fp = new BufferedInputStream(input);
+        fp.mark(2);
+        int first = fp.read();
+        int second = fp.read();
+        fp.reset();
+
+        // The extension is only advisory. Accept raw images and gzip wrappers
+        // regardless of whether the file is named .image or .image.gz.
+        InputStream imageStream = (first == 0x1f && second == 0x8b)
+                ? new GZIPInputStream(fp)
+                : fp;
+        DataInputStream ser = new DataInputStream(imageStream);
         readImage(ser);
     }
 
@@ -307,7 +348,7 @@ public class SqueakImage {
         return SqueakVM.objectMemory.registerObject(obj);
     }
 
-    private void writeImage(DataOutput ser) throws IOException {
+    private void writeImage(DataOutput ser, boolean markResume) throws IOException {
         if (specialObjectsArray == null) {
             throw new IOException("cannot save an image without a special objects array");
         }
@@ -317,37 +358,102 @@ public class SqueakImage {
         // of a context, so persist the current registers before serializing.
         storeCurrentRegisters();
 
-        List<SqueakObject> objects = collectLiveObjects();
-        int baseAddr = imageBaseAddress();
-        Map<SqueakObject, Integer> oops = new IdentityHashMap<>(objects.size() * 2);
-
-        int endOfMemory = 0;
-        for (SqueakObject object : objects) {
-            int oop = baseAddr + endOfMemory + 8; // base word of a 3-word header
-            oops.put(object, oop);
-            endOfMemory += 12 + objectWordCount(object) * 4;
+        // While a process is running, its scheduler slot may contain nil for
+        // suspendedContext. The snapshot must make the active context reachable
+        // from the scheduler, otherwise loadInitialContext() starts from nil.
+        // Set it only for the duration of serialization and restore it afterwards.
+        SqueakObject activeProcess = activeProcess();
+        Object previousSuspendedContext = null;
+        boolean restoreActiveProcess = false;
+        if (activeProcess != null && vm != null
+                && vm.activeContext != null && vm.activeContext != SqueakVM.nilObj
+                && activeProcess.pointersSize() > Squeak.Proc_suspendedContext) {
+            previousSuspendedContext = activeProcess.getPointer(Squeak.Proc_suspendedContext);
+            activeProcess.setPointer(Squeak.Proc_suspendedContext, vm.activeContext);
+            restoreActiveProcess = true;
         }
 
-        Integer specialOop = oops.get(specialObjectsArray);
-        if (specialOop == null) {
-            throw new IOException("special objects array is not part of the live object graph");
+        // Squeak's snapshot primitive returns true when the saved context is
+        // resumed. The saved stack top is that result slot; without this,
+        // snapshot:andQuit: sees a stale object and sends #not to it.
+        Object previousStackTop = null;
+        boolean restoreStackTop = false;
+        if (markResume && vm != null && vm.activeContext != null
+                && vm.activeContext != SqueakVM.nilObj
+                && vm.activeContext.pointers != null
+                && vm.sp >= 0 && vm.sp < vm.activeContext.pointers.length) {
+            previousStackTop = vm.activeContext.pointers[vm.sp];
+            vm.activeContext.pointers[vm.sp] = specialObjectsArray
+                    .pointers[Squeak.splOb_TrueObject];
+            restoreStackTop = true;
         }
 
-        ser.writeInt(IMAGE_VERSION);
-        ser.writeInt(IMAGE_HEADER_SIZE);
-        ser.writeInt(endOfMemory);
-        ser.writeInt(baseAddr);
-        ser.writeInt(specialOop);
-        ser.writeInt(SqueakVM.objectMemory.getLastHash());
-        ser.writeInt(savedWindowSize);
-        ser.writeInt(fullScreenFlag);
-        ser.writeInt(extraVMMemory);
-        for (int i = 9 * 4; i < IMAGE_HEADER_SIZE; i++) {
-            ser.writeByte(0);
-        }
+        try {
+            List<SqueakObject> objects = collectLiveObjects();
+            int baseAddr = imageBaseAddress();
+            Map<SqueakObject, Integer> oops = new IdentityHashMap<>(objects.size() * 2);
 
-        for (SqueakObject object : objects) {
-            writeObject(ser, object, oops);
+            // SqueakJS starts the traditional object list at oldBaseAddr + 4.
+            // SizeAndClass headers make the first real object oop oldBaseAddr + 8,
+            // so emit a tiny 2-word (HeaderTypeClass) placeholder first. The
+            // placeholder is unreachable; it only keeps the first object at the
+            // address expected by other Squeak readers.
+            int endOfMemory = 8;
+            for (SqueakObject object : objects) {
+                int oop = baseAddr + endOfMemory + 8; // base word of a 3-word header
+                oops.put(object, oop);
+                endOfMemory += 12 + objectWordCount(object) * 4;
+            }
+
+            Integer specialOop = oops.get(specialObjectsArray);
+            if (specialOop == null) {
+                throw new IOException("special objects array is not part of the live object graph");
+            }
+
+            ser.writeInt(IMAGE_VERSION);
+            ser.writeInt(IMAGE_HEADER_SIZE);
+            ser.writeInt(endOfMemory);
+            ser.writeInt(baseAddr);
+            ser.writeInt(specialOop);
+            ser.writeInt(SqueakVM.objectMemory.getLastHash());
+            ser.writeInt(savedWindowSize);
+            ser.writeInt(fullScreenFlag);
+            ser.writeInt(extraVMMemory);
+            for (int i = 9 * 4; i < IMAGE_HEADER_SIZE; i++) {
+                ser.writeByte(0);
+            }
+
+            SqueakObject nilObject = (SqueakObject) specialObjectsArray
+                    .pointers[Squeak.splOb_NilObject];
+            Integer placeholderClassOop = oops.get(nilObject.getSqClass());
+            if (placeholderClassOop == null || placeholderClassOop < 32) {
+                throw new IOException("cannot write the image placeholder class");
+            }
+            ser.writeInt(Squeak.HeaderTypeClass + placeholderClassOop);
+            ser.writeInt(1 << 2); // one header word, zero data words
+
+            for (SqueakObject object : objects) {
+                writeObject(ser, object, oops);
+            }
+        } finally {
+            if (restoreStackTop) {
+                vm.activeContext.pointers[vm.sp] = previousStackTop;
+            }
+            if (restoreActiveProcess) {
+                activeProcess.setPointer(Squeak.Proc_suspendedContext,
+                        previousSuspendedContext);
+            }
+        }
+    }
+
+    private SqueakObject activeProcess() {
+        try {
+            SqueakObject schedulerAssociation = specialObjectsArray
+                    .getPointerNI(Squeak.splOb_SchedulerAssociation);
+            SqueakObject scheduler = schedulerAssociation.getPointerNI(Squeak.Assn_value);
+            return scheduler.getPointerNI(Squeak.ProcSched_activeProcess);
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 
@@ -361,28 +467,23 @@ public class SqueakImage {
     }
 
     /**
-     * Collects the objects that belong to the current image. Objects of older
-     * image generations are only included when a live object still refers to
-     * them, so saving after several image loads does not drag a whole stale
-     * object graph along.
+     * Collects the live object graph reachable from the special objects array
+     * and the active context.
+     * <p>
+     * The object table also contains garbage and objects from older image
+     * generations. Rooting every object in the table would drag dead processes
+     * (including processes whose suspended context is nil) and other garbage
+     * into the saved image, making it larger and leaving invalid process state
+     * for another VM.
      */
     private List<SqueakObject> collectLiveObjects() {
-        int generation = imageGeneration;
         IdentityHashMap<SqueakObject, Boolean> seen = new IdentityHashMap<>();
         ArrayDeque<SqueakObject> pending = new ArrayDeque<>();
 
-        int length = SqueakVM.objectMemory.getObjectTableLength();
-        for (int i = 0; i < length; i++) {
-            WeakReference<Object> reference = SqueakVM.objectMemory.getObjectAt(i);
-            Object value = reference == null ? null : reference.get();
-            if (value instanceof SqueakObject) {
-                SqueakObject object = (SqueakObject) value;
-                if (object.imageGeneration == generation || object.imageGeneration == 0) {
-                    addObject(pending, seen, object);
-                }
-            }
-        }
         addObject(pending, seen, specialObjectsArray);
+        if (vm != null) {
+            addObject(pending, seen, vm.activeContext);
+        }
 
         List<SqueakObject> objects = new ArrayList<>(seen.size());
         while (!pending.isEmpty()) {

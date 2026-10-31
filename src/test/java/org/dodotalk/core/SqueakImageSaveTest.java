@@ -8,13 +8,17 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -130,7 +134,7 @@ class SqueakImageSaveTest {
     }
 
     @Test
-    @DisplayName("primitive 121 sets the image name and the save-as target")
+    @DisplayName("primitive 121 sets a raw .image save-as target")
     void primitive121SetsImageName() throws Exception {
         Path renamed = tempDir.resolve("renamed.image");
         SqueakImage image = new SqueakImage(
@@ -144,19 +148,180 @@ class SqueakImageSaveTest {
             vm.push(name);
 
             assertTrue(SqueakVM.primHandler.doPrimitive(121, 1));
-            Path physical = tempDir.resolve("renamed.image.gz");
             assertEquals(renamed.toAbsolutePath().toString(), SqueakVM.image.imageName());
-            assertEquals(physical.toAbsolutePath().toString(),
+            assertEquals(renamed.toAbsolutePath().toString(),
                     SqueakVM.image.imageFile().getAbsolutePath());
 
             image.save(image.imageFile());
-            assertTrue(Files.isRegularFile(physical));
-            assertFalse(Files.exists(renamed),
-                    "the logical .image name must not contain gzip bytes");
-            assertNotNull(new SqueakImage(physical.toFile()).specialObjectsArray,
-                    "a gzip image saved under the logical .image name must reload");
+            assertTrue(Files.isRegularFile(renamed));
+            byte[] saved = Files.readAllBytes(renamed);
+            assertFalse(saved.length >= 2 && (saved[0] & 0xFF) == 0x1f
+                            && (saved[1] & 0xFF) == 0x8b,
+                    "Save As .image targets must be raw, not gzip");
+            assertNotNull(new SqueakImage(renamed.toFile()).specialObjectsArray,
+                    "a raw image saved under the logical .image name must reload");
         } finally {
             vm.sp = savedSp;
+        }
+    }
+
+    @Test
+    @DisplayName("raw images load and save atomically with a .bak")
+    void rawImageRoundTrip() throws Exception {
+        Path raw = copyAsRaw(TestImages.miniImage().toPath(), tempDir.resolve("mini.image"));
+        SqueakImage image = new SqueakImage(raw.toFile());
+        new SqueakVM(image);
+
+        assertEquals(raw.toAbsolutePath().toString(), image.imageFile().getAbsolutePath());
+        image.save(raw.toFile());
+
+        assertTrue(Files.size(raw) > 0, "saved raw image must not be empty");
+        assertTrue(Files.exists(tempDir.resolve("mini.image.bak")),
+                "raw saves must keep the previous image as .bak");
+        assertNotNull(new SqueakImage(raw.toFile()).specialObjectsArray,
+                "raw image must reload");
+    }
+
+    @Test
+    @DisplayName("magic bytes decide gzip/raw regardless of the file extension")
+    void magicBytesOverrideExtension() throws Exception {
+        Path disguisedGzip = copyAsGzip(TestImages.miniImage().toPath(),
+                tempDir.resolve("disguised.image"));
+        assertNotNull(new SqueakImage(disguisedGzip.toFile()).specialObjectsArray,
+                "gzip bytes named .image must load");
+
+        Path disguisedRaw = copyAsRaw(TestImages.miniImage().toPath(),
+                tempDir.resolve("disguised.image.gz"));
+        assertNotNull(new SqueakImage(disguisedRaw.toFile()).specialObjectsArray,
+                "raw bytes named .image.gz must load");
+    }
+
+    @Test
+    @DisplayName("unreachable objects are not written into the saved image")
+    void unreachableObjectsAreNotSaved() throws Exception {
+        SqueakImage image = new SqueakImage(TestImages.miniImage());
+        SqueakVM vm = new SqueakVM(image);
+
+        String marker = "dodotalk-unreachable-marker-9c7f";
+        SqueakObject stringClass = (SqueakObject) vm.getSpecialObject(
+                Squeak.splOb_ClassString);
+        SqueakObject unreachable = new SqueakObject(image, stringClass, 0, SqueakVM.nilObj);
+        unreachable.bits = marker.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        Path target = tempDir.resolve("reachable.image");
+        image.save(target.toFile());
+
+        byte[] saved = Files.readAllBytes(target);
+        assertFalse(indexOf(saved, marker.getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8)) >= 0,
+                "unreachable objects must not be serialized");
+    }
+
+    @Test
+    @DisplayName("raw saves start with the SqueakJS-compatible leading placeholder")
+    void rawSaveStartsWithPlaceholder() throws Exception {
+        SqueakImage image = new SqueakImage(TestImages.miniImage());
+        new SqueakVM(image);
+        Path raw = tempDir.resolve("placeholder.image");
+        image.save(raw.toFile());
+
+        byte[] saved = Files.readAllBytes(raw);
+        int firstHeader = java.nio.ByteBuffer.wrap(saved, 64, 4).getInt();
+        assertEquals(Squeak.HeaderTypeClass, firstHeader & Squeak.HeaderTypeMask,
+                "the first object must use a 2-word HeaderTypeClass header");
+    }
+
+    @Test
+    @DisplayName("primitive snapshots mark the resumed stack top with true")
+    void primitiveSnapshotMarksResumeResult() throws Exception {
+        SqueakImage image = new SqueakImage(TestImages.miniImage());
+        new SqueakVM(image);
+        Path target = tempDir.resolve("resume.image");
+        image.save(target.toFile(), true);
+
+        SqueakVM reloaded = new SqueakVM(new SqueakImage(target.toFile()));
+        assertEquals(SqueakVM.trueObj,
+                reloaded.activeContext.getPointer(reloaded.sp),
+                "the snapshot resume result must be true");
+    }
+
+    @Test
+    @DisplayName("save preserves active process context when the running process holds nil")
+    void savePreservesActiveProcessContext() throws Exception {
+        SqueakImage image = new SqueakImage(TestImages.miniImage());
+        SqueakVM vm = new SqueakVM(image);
+
+        SqueakObject schedulerAssociation = vm.getSpecialObject(
+                Squeak.splOb_SchedulerAssociation);
+        SqueakObject scheduler = schedulerAssociation.getPointerNI(Squeak.Assn_value);
+        SqueakObject activeProcess = scheduler.getPointerNI(Squeak.ProcSched_activeProcess);
+
+        // A running process normally has nil here; this is the state that made
+        // the saved image fail in loadInitialContext().
+        activeProcess.setPointer(Squeak.Proc_suspendedContext, SqueakVM.nilObj);
+        Path target = tempDir.resolve("running.image");
+        image.save(target.toFile());
+
+        assertEquals(SqueakVM.nilObj,
+                activeProcess.getPointer(Squeak.Proc_suspendedContext),
+                "save must restore the live process state");
+
+        SqueakVM reloaded = new SqueakVM(new SqueakImage(target.toFile()));
+        SqueakObject reloadedScheduler = reloaded.getSpecialObject(
+                        Squeak.splOb_SchedulerAssociation)
+                .getPointerNI(Squeak.Assn_value);
+        SqueakObject reloadedProcess = reloadedScheduler
+                .getPointerNI(Squeak.ProcSched_activeProcess);
+        SqueakObject context = reloadedProcess
+                .getPointerNI(Squeak.Proc_suspendedContext);
+
+        assertNotSame(SqueakVM.nilObj, context,
+                "the saved active process must have a current context");
+        assertTrue(context.pointersSize() > Squeak.Context_method,
+                "the reloaded active context must be a real context object");
+    }
+
+    private static Path copyAsRaw(Path source, Path target) throws IOException {
+        if (!isGzip(source)) {
+            Files.copy(source, target);
+            return target;
+        }
+        try (InputStream input = new GZIPInputStream(Files.newInputStream(source))) {
+            Files.copy(input, target);
+        }
+        return target;
+    }
+
+    private static Path copyAsGzip(Path source, Path target) throws IOException {
+        if (isGzip(source)) {
+            Files.copy(source, target);
+            return target;
+        }
+        try (InputStream input = Files.newInputStream(source);
+             OutputStream output = new GZIPOutputStream(Files.newOutputStream(target))) {
+            input.transferTo(output);
+        }
+        return target;
+    }
+
+    private static int indexOf(byte[] haystack, byte[] needle) {
+        outer:
+        for (int i = 0; i + needle.length <= haystack.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
+    }
+
+    private static boolean isGzip(Path source) throws IOException {
+        try (InputStream input = Files.newInputStream(source)) {
+            int first = input.read();
+            int second = input.read();
+            return first == 0x1f && second == 0x8b;
         }
     }
 }

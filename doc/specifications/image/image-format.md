@@ -1,16 +1,17 @@
-# 映像格式与 gzip 封装
+# 映像格式：raw 与 gzip 封装
 
 | 字段 | 值 |
 |------|----|
-| 状态 | current（gzip-only） |
+| 状态 | current（raw + gzip） |
 | 适用代码 | `SqueakImage`、`Starter`、Primitive 97/121/142 |
 | 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
-| 最后核对 | 2026-10-30 |
-| 后续计划 | [ISSUE-0005：raw `.image` 支持](../../issues/ISSUE-0005-raw-image-format-support.md) |
+| 最后核对 | 2026-10-31 |
+| 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) |
+| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md) |
 
 ## 1. 结论
 
-**gzip 是 DodoTalk 在 Java 层额外增加的存储封装，不是 Squeak 2.2 的约束。**
+**gzip 是 DodoTalk 在 Java 层额外增加的可选封装，不是 Squeak 2.2 的约束。**
 
 Squeak 2.2 的映像格式和命名规则只要求：
 
@@ -18,31 +19,84 @@ Squeak 2.2 的映像格式和命名规则只要求：
 - changes 文件为 `<basename>.changes`；
 - Primitive 97 负责把对象内存写成映像文件，但不规定压缩格式。
 
-当前 DodoTalk 的实现则固定使用 gzip：
+当前 DodoTalk 同时支持：
 
-- `SqueakImage.loaded()` 使用 `GZIPInputStream`；
-- `SqueakImage.save()` 使用 `GZIPOutputStream`；
-- 仓库不内置任何 Squeak image；用户在启动器或 `-image` 中提供 `*.image.gz`。
+- **raw `.image` / `.IMA`**：原版 Squeak 2.2 和 SqueakJS 可直接使用；
+- **gzip `.image.gz`**：DodoTalk 的历史/可选封装。
 
-因此，DodoTalk 目前**不能直接加载标准未压缩的 Squeak `.image` 文件**，也不能生成原版 Squeak VM 可直接读取的未压缩映像。启动器只接受 `*.image.gz`。
+读取时按 magic bytes 判断，而不是扩展名：
+
+- `1f 8b`：gzip；
+- 其他：raw。
+
+因此，文件名为 `.image` 但内容是 gzip，或文件名为 `.image.gz` 但内容是 raw，
+仍然可以加载；扩展名只用于启动器筛选和提示。
+
+仓库不内置任何 Squeak image；用户在启动器或 `-image` 中提供 `.image`、
+`.image.gz` 或 `.IMA`。
 
 ## 2. 当前 save / save as 行为
 
-用户选择 `/data/squeak/squeak22.image.gz` 后，运行时目录就是 `/data/squeak/`：
+### 2.1 从 gzip 映像启动
 
-| 操作 | 逻辑映像名（Squeak 可见） | 实际落盘文件 | changes |
-|------|---------------------------|--------------|---------|
-| 默认 `save` | `/data/squeak/squeak22.image` | `/data/squeak/squeak22.image.gz` | `/data/squeak/squeak22.changes` |
-| `save as`，输入 `foobar` | `.../foobar.image` | `.../foobar.image.gz` | `.../foobar.changes` |
+用户选择 `/data/squeak/squeak22.image.gz` 后，运行时目录是 `/data/squeak/`：
 
-`SqueakImage.imageName()` 会去掉物理文件名的 `.gz` 后缀，向 Squeak 返回逻辑名。这样：
+| 操作 | 逻辑映像名（Squeak 可见） | 实际落盘文件 | 格式 | changes |
+|------|---------------------------|--------------|------|---------|
+| `save` | `/data/squeak/squeak22.image` | `/data/squeak/squeak22.image.gz` | gzip | `/data/squeak/squeak22.changes` |
+| `save as`，输入 `foobar` | `.../foobar.image` | `.../foobar.image` | **raw** | `.../foobar.changes` |
 
-- Squeak 的 `changesName` 仍是 `foobar.changes`；
-- `save as` 的重名检查仍以 `foobar.image` / `foobar.changes` 为准；
-- 实际磁盘文件位于所选 image 的目录，扩展名与内容一致；
-- Primitive 97 覆盖所选 image 前会保留 `<name>.bak`。
+- `save` 保持当前物理格式：gzip 源继续写 gzip。
+- `save as` 固定生成 raw `.image`；原 gzip 文件保留不动。
+- 执行 `save as` 后，当前映像变为 raw `foobar.image`，之后的 `save` 继续写 raw。
 
-`vmPath` 指向所选 image 的父目录，因此用户放在同目录的 `SqueakV2.sources` 和匹配的 `.changes` 会被 Squeak 找到。仓库不再复制任何 sources/changes。
+### 2.2 从 raw 映像启动
+
+| 操作 | 逻辑映像名 | 实际落盘文件 | 格式 |
+|------|------------|--------------|------|
+| `save` | `.../squeak22.image` | `.../squeak22.image` | raw |
+| `save as`，输入 `foobar` | `.../foobar.image` | `.../foobar.image` | raw |
+
+### 2.3 Save As 的固定语义
+
+Squeak 2.2 的 `SystemDictionary>>saveAs` 会自己构造：
+
+```text
+<newName>.image
+<newName>.changes
+```
+
+它只识别 `.image` / `.IMA` 后缀，不会把 `.gz` 传给 Primitive 121。因此：
+
+- **内置 Save As 固定生成 raw `.image`**；
+- 不提供内置 gzip Save As；
+- 用户不应在 Save As 对话框里输入 `bar.image.gz` 来选择 gzip；Squeak 可能把它
+  组合成 `bar.image.gz.image` 一类名字；
+- 如需 gzip 副本，使用外部 `gzip` 或未来单独设计的显式导出功能。
+
+底层 `SqueakImage.save(target)` 仍按目标扩展名选择：`.gz` 写 gzip，其他目标写
+raw；这主要服务于 `save` 当前 `.image.gz` 文件，而不是用户可见的 Save As。
+
+`SqueakImage.imageName()` 对 gzip 文件名去掉 `.gz`，对 raw 文件名保持不变。
+这样 Squeak 的 `changesName` 始终是 `<basename>.changes`。
+
+`save` / `save as` 覆盖目标前都会保留 `<target>.bak`；目标位于所选映像目录。
+
+保存只写入从 `specialObjectsArray` 和当前活动上下文可达的对象，不写入对象表中的
+死进程/运行时垃圾。由于 writer 当前对所有对象统一使用 3-word SizeAndClass header，
+保存后的映像仍可能比原映像大一些；这是格式开销，不是启动失败。
+
+为了兼容 SqueakJS 的传统对象读取器，writer 在映像开头写入一个不可达的 2-word
+`HeaderTypeClass` 占位对象。SqueakJS 从 `oldBaseAddr + 4` 开始建立对象链表；
+3-word SizeAndClass 的第一个真实对象 oop 是 `oldBaseAddr + 8`，没有占位对象时
+SqueakJS 会认为对象表为空。该占位对象不属于活对象图，DodoTalk 重载时会正常忽略。
+
+Primitive 97 保存运行中的映像时，还会把活动上下文栈顶临时置为 Squeak `true`。
+这是 `snapshot:andQuit:` 在恢复时期望的 primitive 返回值；如果不设置，恢复后
+`resuming not` 会对旧栈值发送 `#not`，导致 UI 进程进入 debugger。
+
+`vmPath` 指向所选 image 的父目录，因此用户放在同目录的 `SqueakV2.sources` 和
+匹配的 `.changes` 会被 Squeak 找到。仓库不复制任何 sources/changes。
 
 缺少这些可选文件不会阻止启动，但 Squeak 2.2 会弹出 MVC 提示框，且源码浏览/
 调试器源码显示/变更记录不可用。DodoTalk 在 `Starter.load()` 中通过
@@ -58,7 +112,7 @@ Squeak 2.2 的映像格式和命名规则只要求：
 <project>/logs/runtime-stats.log   （启用统计时）
 ```
 
-### 2.1 save as 链路
+### 2.4 save as 链路
 
 ```text
 ScreenController>>saveAs
@@ -68,54 +122,67 @@ ScreenController>>saveAs
        copy changes
        self imageName: "/path/to/image/foobar.image"   (Primitive 121)
   -> SqueakImage.setImageName(".../foobar.image")
-       physical target = ".../foobar.image.gz"
+       physical target = ".../foobar.image"   (raw)
   -> SystemDictionary>>snapshot:andQuit:
   -> Primitive 97
-       SqueakImage.save(".../foobar.image.gz")
+       SqueakImage.save(".../foobar.image")
 ```
 
-## 3. 历史行为与兼容性风险
+## 3. 历史行为与兼容性
 
-在本次调整前，`setImageName` 曾把 Squeak 的逻辑名原样作为物理目标，导致：
+旧版本 DodoTalk 固定使用 gzip，并且 `setImageName` 会自动追加 `.gz`，因此：
 
-- `foobar.image` 实际内容是 gzip；
-- 扩展名与内容不一致；
-- 外部工具按标准 `.image` 读取会失败；
-- 默认 `save` 是 `.image.gz`，`save as` 是 `.image`，命名不一致。
+- 从 gzip 映像 Save As 会得到 `foobar.image.gz`；
+- raw `.image` 不能直接加载；
+- 原版工具链无法直接打开 DodoTalk 快照。
 
 当前实现已修正为：
 
-- 逻辑名保持 `.image`；
-- 物理文件统一为 `.image.gz`；
-- 不再生成“扩展名是 `.image`、内容是 gzip”的新文件。
+- 读取 raw/gzip 均可，magic bytes 优先；
+- `save` 保持当前格式；
+- `save as` 固定 raw `.image`；
+- 旧的 `.image.gz` 文件继续可加载、可原地保存。
 
 > 旧版本生成的历史 `foobar.image` 如果存在，它仍然可能是 gzip 内容；可以用
 > `file foobar.image` 或 `xxd -l 2 foobar.image` 检查（gzip 魔数为 `1f 8b`）。
+> magic sniffing 会按实际内容加载。
 
-## 4. 后续兼容原版 Squeak 工具链
+## 4. 与 SqueakJS 的互操作验证
 
-DodoTalk 当前仍是 **gzip-only**。raw `.image` / `.IMA` 的读取、写入、save-as
-语义和交叉验证属于后续需求，已移入
-[ISSUE-0005：raw `.image` 支持](../../issues/ISSUE-0005-raw-image-format-support.md)，
-不在本规范中描述未实现行为。
+人工交叉验证基准为 **SqueakJS 1.3.3**（浏览器内运行）。步骤：
+
+1. DodoTalk 从 raw 或 gzip 映像启动；
+2. 使用 Save As 生成 raw `.image`（gzip 源也可）；
+3. 确认文件前两个字节不是 `1f 8b`；
+4. 把 raw `.image` 和匹配的 `.changes` 导入 SqueakJS 页面；
+5. 启动并完成基本操作（Workspace `1 + 1`、`Smalltalk imageName`、打开菜单等）；
+6. 记录 SqueakJS 版本、浏览器、操作系统和结果。
+
+SqueakJS 可能比原版 VM 更宽容，因此验证通过是互操作必要条件，不是逐字节格式
+证明；raw/gzip 单元测试仍必须通过。
 
 ## 5. 相关代码
 
 - `src/main/java/org/dodotalk/launcher/LauncherFrame.java`
-  - 图像选择、`.image.gz` 过滤、后台启动 VM
+  - 图像选择、raw/gzip/IMA 过滤、后台启动 VM
+- `src/main/java/org/dodotalk/launcher/SqueakImageFileFilter.java`
+  - raw/gzip/IMA 文件过滤器
 - `src/main/java/org/dodotalk/Starter.java`
   - `validateImageFile()`、`load()`、`boot(File)`
   - `changesFileFor()`、`sourcesFileFor()`、`supportFileWarnings()`
 - `src/main/java/org/dodotalk/core/SqueakImage.java`
-  - `loaded()`：gzip 读取
-  - `save()` / `writeCompressedImage()`：gzip 写入
+  - `loaded()`：magic sniff（raw/gzip）
+  - `save()` / `writeCompressedImage()` / `writeRawImage()`：按目标格式写入
   - `runtimeDirectory()`：所选 image 父目录（`vmPath`）
   - `setImageName()` / `imageName()`：逻辑名与物理名映射
+  - `writeImage()`：保存活动进程当前上下文
 - `src/main/java/org/dodotalk/core/SqueakPrimitiveHandler.java`
   - Primitive 97：snapshot
   - Primitive 121：设置逻辑 imageName
   - Primitive 142：使用 `runtimeDirectory()`
 - `src/test/java/org/dodotalk/core/SqueakImageSaveTest.java`
-  - 原子保存、save as 逻辑名/物理名、重载
-- `src/test/java/org/dodotalk/core/PrimitiveTest.java`
-  - Primitive 97 成功返回 `falseObj`
+  - raw/gzip 往返、magic sniff、Save As raw、原子保存、活动上下文保存
+- `src/test/java/org/dodotalk/core/ObjectMemoryEnumerationTest.java`
+  - GC 压缩后的对象表枚举安全
+- `src/test/java/org/dodotalk/TestImages.java`
+  - raw/gzip 测试映像发现

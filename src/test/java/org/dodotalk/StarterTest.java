@@ -102,14 +102,25 @@ class StarterTest {
     }
 
     @Test
-    void validateImageFileRejectsRawImage(@TempDir Path directory) throws Exception {
-        Path image = directory.resolve("test.image");
+    void validateImageFileAcceptsRawAndImaImages(@TempDir Path directory) throws Exception {
+        Path raw = directory.resolve("test.image");
+        Files.write(raw, new byte[]{0});
+        assertEquals(raw.toFile().getAbsoluteFile(),
+                Starter.validateImageFile(raw.toFile()));
+
+        Path ima = directory.resolve("test.IMA");
+        Files.write(ima, new byte[]{0});
+        assertEquals(ima.toFile().getAbsoluteFile(),
+                Starter.validateImageFile(ima.toFile()));
+    }
+
+    @Test
+    void validateImageFileRejectsUnsupportedExtension(@TempDir Path directory) throws Exception {
+        Path image = directory.resolve("test.txt");
         Files.write(image, new byte[]{0});
 
-        IOException failure = assertThrows(IOException.class,
+        assertThrows(IOException.class,
                 () -> Starter.validateImageFile(image.toFile()));
-        assertEquals("Only gzip-compressed .image.gz images are supported",
-                failure.getMessage());
     }
 
     @Test

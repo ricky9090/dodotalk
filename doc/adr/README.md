@@ -9,7 +9,9 @@ ADR（Architecture Decision Record）记录重要、难回退、跨模块的技�
 | ID | 决策 | 状态 |
 |----|------|------|
 | [ADR-0001](ADR-0001-documentation-workflow.md) | 采用 Issue → Design → ADR 文档流程 | accepted（文档布局部分由 ADR-0004 取代） |
-| [ADR-0002](ADR-0002-test-image-storage-and-discovery.md) | 测试映像放在仓库外 `temp/test-images/` 并自动发现 | accepted |
+| [ADR-0002](ADR-0002-test-image-storage-and-discovery.md) | 测试映像放在仓库外 `temp/test-images/` 并自动发现 | accepted（raw 过渡条款由 ADR-0007 更新） |
 | [ADR-0003](ADR-0003-mouse-polling-throttle.md) | 将 MVC 空闲鼠标轮询限制在 250 Hz | accepted |
 | [ADR-0004](ADR-0004-documentation-taxonomy.md) | 采用 specifications / guides / plans 文档分层 | accepted |
 | [ADR-0005](ADR-0005-input-poll-throttle-keyboard.md) | 将输入轮询限速扩展到键盘原语 | accepted |
+| [ADR-0006](ADR-0006-raw-gzip-image-compatibility.md) | raw/gzip 映像兼容与 Save As 固定 raw | accepted |
+| [ADR-0007](ADR-0007-raw-test-image-discovery.md) | 测试映像发现同时支持 raw 与 gzip | accepted |

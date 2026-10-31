@@ -31,6 +31,9 @@ build/
 *.image.gz
 *.image.bak
 *.image.gz.bak
+*.IMA
+*.ima
+*.ima.bak
 *.changes
 SqueakV2.sources
 

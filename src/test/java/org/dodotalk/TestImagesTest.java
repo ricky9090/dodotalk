@@ -42,6 +42,16 @@ class TestImagesTest {
     }
 
     @Test
+    void findsRawImageWhenGzipIsAbsent() throws IOException {
+        Files.writeString(tempDir.resolve("squeak22.image"), "raw");
+
+        File found = TestImages.findImage(tempDir.toFile(), "squeak22");
+
+        assertEquals(tempDir.resolve("squeak22.image").toFile().getAbsoluteFile(),
+                found.getAbsoluteFile());
+    }
+
+    @Test
     void returnsNullWhenNoCandidateExists() {
         assertNull(TestImages.findImage(tempDir.toFile(), "mini"));
     }

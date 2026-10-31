@@ -62,4 +62,13 @@ class LaunchOptionsTest {
         assertThrows(IllegalArgumentException.class,
                 () -> LaunchOptions.parse(new String[]{"-image", "a", "b"}));
     }
+
+    @Test
+    void usageMentionsRawAndGzipImages() {
+        String usage = LaunchOptions.usage();
+
+        assertTrue(usage.contains(".image"), usage);
+        assertTrue(usage.contains(".image.gz"), usage);
+        assertTrue(usage.contains(".IMA"), usage);
+    }
 }
