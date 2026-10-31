@@ -1,8 +1,8 @@
 # DodoTalk 下一迭代高优方向
 
 > 日期：2026-10-31（raw/gzip 映像兼容与快照上下文修复完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（218 个测试；无 image 时 64 个集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容已落地。
+> 依据：当前代码审查、`./gradlew clean test`（230 个测试；无 image 时集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer 已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
 
@@ -11,8 +11,8 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 218 个 JUnit 5 测试；无 image 时 64 个集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
-| 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz`；Primitive 97 可保存并重新加载 |
+| 测试 | 230 个 JUnit 5 测试；无 image 时集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
+| 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz` 或 raw `*.image`；Primitive 97 可保存并重新加载；writer 输出 short/class/size-and-class 混合 header，保存体积与原版一致 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
 | 显示 | 1/2/4/8/16/32 bpp；脏矩形合并/裁剪；defer/force 生效；233 明确失败 |
@@ -118,6 +118,19 @@
   `.image.gz` 和 `.image` 都能启动；raw `.image` 可导入 SqueakJS 1.3.3。
 - 详见 [ISSUE-0005](../issues/ISSUE-0005-raw-image-format-support.md) /
   [ADR-0006](../adr/ADR-0006-raw-gzip-image-compatibility.md)。
+
+### P1-8（已完成）：映像 writer compact headers
+
+- writer 已改为混合 header：按 compact class table 和对象大小选择
+  short/class/size-and-class header。
+- 前三个对象改为真实的 `nil`、`false`、`true`，均使用 2-word class header；
+  `nil` 的 oop 为 `oldBaseAddr + 4`，占位对象只在 `nil` 不可用时作为 fallback。
+- 完整 `squeak22` 映像保存后为 3,576,628 字节，与原版解压后大小相同；
+  `mini.image` 为 602,548 字节。
+- SqueakJS 1.3.3 headless 已成功加载并运行新生成的 raw 映像。
+- 详见 [ISSUE-0008](../issues/ISSUE-0008-image-writer-compact-headers.md) /
+  [DESIGN-0008](../design/DESIGN-0008-image-writer-compact-headers.md) /
+  [ADR-0008](../adr/ADR-0008-image-writer-compact-headers.md)。
 
 ### P1-7（下一迭代候选）：Launcher 运行时参数
 

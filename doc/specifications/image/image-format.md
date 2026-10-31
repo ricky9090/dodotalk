@@ -2,12 +2,12 @@
 
 | 字段 | 值 |
 |------|----|
-| 状态 | current（raw + gzip） |
+| 状态 | current（raw + gzip + mixed headers） |
 | 适用代码 | `SqueakImage`、`Starter`、Primitive 97/121/142 |
 | 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
 | 最后核对 | 2026-10-31 |
-| 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) |
-| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md) |
+| 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) / [ADR-0008](../../adr/ADR-0008-image-writer-compact-headers.md) |
+| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md) |
 
 ## 1. 结论
 
@@ -83,13 +83,28 @@ raw；这主要服务于 `save` 当前 `.image.gz` 文件，而不是用户可�
 `save` / `save as` 覆盖目标前都会保留 `<target>.bak`；目标位于所选映像目录。
 
 保存只写入从 `specialObjectsArray` 和当前活动上下文可达的对象，不写入对象表中的
-死进程/运行时垃圾。由于 writer 当前对所有对象统一使用 3-word SizeAndClass header，
-保存后的映像仍可能比原映像大一些；这是格式开销，不是启动失败。
+死进程/运行时垃圾。writer 按 Squeak 2.2 传统 object memory 的规则输出混合
+header：
 
-为了兼容 SqueakJS 的传统对象读取器，writer 在映像开头写入一个不可达的 2-word
-`HeaderTypeClass` 占位对象。SqueakJS 从 `oldBaseAddr + 4` 开始建立对象链表；
-3-word SizeAndClass 的第一个真实对象 oop 是 `oldBaseAddr + 8`，没有占位对象时
-SqueakJS 会认为对象表为空。该占位对象不属于活对象图，DodoTalk 重载时会正常忽略。
+| 条件 | header |
+|------|--------|
+| class 在 `splOb_CompactClasses` 中且 `dataWords + 1 <= 63` | 1-word short |
+| 其他 `dataWords + 1 <= 63` | 2-word class |
+| 更大或无法使用 compact index | 3-word size-and-class |
+
+compact index 映射自 `specialObjectsArray[splOb_CompactClasses]` 的 0–30 项
+（对应 index 1–31），重复 class 取最小 index；表缺失或格式异常时退化为
+class/size-and-class，不阻止保存。
+
+映像前三个对象依次是真实的 `nil`、`false`、`true`，都使用 2-word class header
+且为零数据。`nil` 的 oop 是 `oldBaseAddr + 4`，满足 SqueakJS
+`firstOldObject = oopMap.get(oldBaseAddr + 4)` 的约定。若 `nil` 不可用，writer
+保留一个不可达的 2-word `HeaderTypeClass` 占位对象作为 fallback；该占位对象
+不属于活对象图。
+
+除前置 `nil`/`false`/`true` 外，writer 不模拟原版堆的对象顺序。保存后的映像
+体积与原版接近，但对象地址和顺序不要求逐字节一致。实测 `squeak22` 完整映像
+保存后为 3,576,628 字节，与原版解压后大小相同；`mini.image` 为 602,548 字节。
 
 Primitive 97 保存运行中的映像时，还会把活动上下文栈顶临时置为 Squeak `true`。
 这是 `snapshot:andQuit:` 在恢复时期望的 primitive 返回值；如果不设置，恢复后
@@ -175,13 +190,20 @@ SqueakJS 可能比原版 VM 更宽容，因此验证通过是互操作必要条�
   - `save()` / `writeCompressedImage()` / `writeRawImage()`：按目标格式写入
   - `runtimeDirectory()`：所选 image 父目录（`vmPath`）
   - `setImageName()` / `imageName()`：逻辑名与物理名映射
-  - `writeImage()`：保存活动进程当前上下文
+  - `writeImage()`：保存活动进程当前上下文，并输出混合 object header
+- `src/main/java/org/dodotalk/core/ImageHeaderPlanner.java`
+  - 选择 short / class / size-and-class header
+  - 从 `splOb_CompactClasses` 建立 compact index 映射
 - `src/main/java/org/dodotalk/core/SqueakPrimitiveHandler.java`
   - Primitive 97：snapshot
   - Primitive 121：设置逻辑 imageName
   - Primitive 142：使用 `runtimeDirectory()`
 - `src/test/java/org/dodotalk/core/SqueakImageSaveTest.java`
   - raw/gzip 往返、magic sniff、Save As raw、原子保存、活动上下文保存
+- `src/test/java/org/dodotalk/core/SqueakImageCompactHeaderTest.java`
+  - 首对象布局、三种 header、体积、raw/gzip round-trip、fallback
+- `src/test/java/org/dodotalk/core/ImageHeaderPlannerTest.java`
+  - header 选择和 compact class 映射单元测试
 - `src/test/java/org/dodotalk/core/ObjectMemoryEnumerationTest.java`
   - GC 压缩后的对象表枚举安全
 - `src/test/java/org/dodotalk/TestImages.java`

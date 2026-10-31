@@ -15,3 +15,4 @@ ADR（Architecture Decision Record）记录重要、难回退、跨模块的技�
 | [ADR-0005](ADR-0005-input-poll-throttle-keyboard.md) | 将输入轮询限速扩展到键盘原语 | accepted |
 | [ADR-0006](ADR-0006-raw-gzip-image-compatibility.md) | raw/gzip 映像兼容与 Save As 固定 raw | accepted |
 | [ADR-0007](ADR-0007-raw-test-image-discovery.md) | 测试映像发现同时支持 raw 与 gzip | accepted |
+| [ADR-0008](ADR-0008-image-writer-compact-headers.md) | writer 输出混合 object header、reader 保持兼容 | accepted |

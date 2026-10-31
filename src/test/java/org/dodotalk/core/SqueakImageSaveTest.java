@@ -218,8 +218,8 @@ class SqueakImageSaveTest {
     }
 
     @Test
-    @DisplayName("raw saves start with the SqueakJS-compatible leading placeholder")
-    void rawSaveStartsWithPlaceholder() throws Exception {
+    @DisplayName("raw saves start with the SqueakJS-compatible nil object")
+    void rawSaveStartsWithNilObject() throws Exception {
         SqueakImage image = new SqueakImage(TestImages.miniImage());
         new SqueakVM(image);
         Path raw = tempDir.resolve("placeholder.image");
@@ -229,6 +229,9 @@ class SqueakImageSaveTest {
         int firstHeader = java.nio.ByteBuffer.wrap(saved, 64, 4).getInt();
         assertEquals(Squeak.HeaderTypeClass, firstHeader & Squeak.HeaderTypeMask,
                 "the first object must use a 2-word HeaderTypeClass header");
+        int firstSize = java.nio.ByteBuffer.wrap(saved, 68, 4).getInt();
+        assertEquals(1, (firstSize >>> 2) & 63,
+                "the first object must be the zero-data nil object");
     }
 
     @Test

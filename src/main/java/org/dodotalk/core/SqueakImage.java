@@ -390,19 +390,46 @@ public class SqueakImage {
 
         try {
             List<SqueakObject> objects = collectLiveObjects();
+
+            IdentityHashMap<SqueakObject, Integer> dataWords =
+                    new IdentityHashMap<>(objects.size() * 2);
+            for (SqueakObject object : objects) {
+                dataWords.put(object, objectWordCount(object));
+            }
+
+            SqueakObject nilObject = specialObject(Squeak.splOb_NilObject);
+            List<SqueakObject> leading = leadingSpecialObjects(objects, dataWords);
+            boolean placeholder = leading.isEmpty();
+            if (!placeholder) {
+                objects = moveLeadingObjectsToFront(objects, leading);
+            }
+
+            Map<SqueakObject, Integer> compactClassIndexes =
+                    ImageHeaderPlanner.compactClassIndexes(specialObjectsArray, nilObject);
+            IdentityHashMap<SqueakObject, ImageHeaderPlanner.HeaderPlan> plans =
+                    new IdentityHashMap<>(objects.size() * 2);
+            for (int i = 0; i < objects.size(); i++) {
+                SqueakObject object = objects.get(i);
+                int compactIndex = compactClassIndex(object, compactClassIndexes);
+                ImageHeaderPlanner.HeaderPlan plan =
+                        ImageHeaderPlanner.plan(dataWords.get(object), compactIndex);
+                if (i < leading.size()) {
+                    // SqueakJS looks up the first object at oldBaseAddr + 4.
+                    // A two-word class header puts nil's oop exactly there.
+                    plan = plan.asClassHeader();
+                }
+                plans.put(object, plan);
+            }
+
             int baseAddr = imageBaseAddress();
             Map<SqueakObject, Integer> oops = new IdentityHashMap<>(objects.size() * 2);
-
-            // SqueakJS starts the traditional object list at oldBaseAddr + 4.
-            // SizeAndClass headers make the first real object oop oldBaseAddr + 8,
-            // so emit a tiny 2-word (HeaderTypeClass) placeholder first. The
-            // placeholder is unreachable; it only keeps the first object at the
-            // address expected by other Squeak readers.
-            int endOfMemory = 8;
+            int endOfMemory = placeholder ? 8 : 0;
             for (SqueakObject object : objects) {
-                int oop = baseAddr + endOfMemory + 8; // base word of a 3-word header
+                ImageHeaderPlanner.HeaderPlan plan = plans.get(object);
+                int headerWords = plan.kind().words();
+                int oop = baseAddr + endOfMemory + (headerWords - 1) * 4;
                 oops.put(object, oop);
-                endOfMemory += 12 + objectWordCount(object) * 4;
+                endOfMemory += headerWords * 4 + plan.dataWords() * 4;
             }
 
             Integer specialOop = oops.get(specialObjectsArray);
@@ -423,17 +450,12 @@ public class SqueakImage {
                 ser.writeByte(0);
             }
 
-            SqueakObject nilObject = (SqueakObject) specialObjectsArray
-                    .pointers[Squeak.splOb_NilObject];
-            Integer placeholderClassOop = oops.get(nilObject.getSqClass());
-            if (placeholderClassOop == null || placeholderClassOop < 32) {
-                throw new IOException("cannot write the image placeholder class");
+            if (placeholder) {
+                writePlaceholder(ser, oops, nilObject, objects);
             }
-            ser.writeInt(Squeak.HeaderTypeClass + placeholderClassOop);
-            ser.writeInt(1 << 2); // one header word, zero data words
 
             for (SqueakObject object : objects) {
-                writeObject(ser, object, oops);
+                writeObject(ser, object, oops, plans.get(object));
             }
         } finally {
             if (restoreStackTop) {
@@ -444,6 +466,120 @@ public class SqueakImage {
                         previousSuspendedContext);
             }
         }
+    }
+
+    /**
+     * Returns the live special objects that should lead the image: {@code nil},
+     * then {@code false} and {@code true} when they are usable. The first
+     * object must use a two-word class header so its oop is
+     * {@code oldBaseAddr + 4}; SqueakJS looks the first object up at that
+     * address.
+     */
+    private List<SqueakObject> leadingSpecialObjects(
+            List<SqueakObject> objects,
+            IdentityHashMap<SqueakObject, Integer> dataWords) {
+        SqueakObject nilObject = specialObject(Squeak.splOb_NilObject);
+        if (!isUsableLeadingObject(nilObject, objects, dataWords)) {
+            return List.of();
+        }
+        List<SqueakObject> leading = new ArrayList<>(3);
+        leading.add(nilObject);
+        addLeadingObject(leading, specialObject(Squeak.splOb_FalseObject),
+                objects, dataWords);
+        addLeadingObject(leading, specialObject(Squeak.splOb_TrueObject),
+                objects, dataWords);
+        return leading;
+    }
+
+    private void addLeadingObject(List<SqueakObject> leading,
+                                  SqueakObject candidate,
+                                  List<SqueakObject> objects,
+                                  IdentityHashMap<SqueakObject, Integer> dataWords) {
+        if (candidate == null || containsIdentity(leading, candidate)) {
+            return;
+        }
+        if (isUsableLeadingObject(candidate, objects, dataWords)) {
+            leading.add(candidate);
+        }
+    }
+
+    private boolean isUsableLeadingObject(
+            SqueakObject candidate,
+            List<SqueakObject> objects,
+            IdentityHashMap<SqueakObject, Integer> dataWords) {
+        if (candidate == null || !containsIdentity(objects, candidate)) {
+            return false;
+        }
+        Integer words = dataWords.get(candidate);
+        if (words == null || words != 0) {
+            return false;
+        }
+        return candidate.sqClass instanceof SqueakObject
+                && containsIdentity(objects, (SqueakObject) candidate.sqClass);
+    }
+
+    private static boolean containsIdentity(List<SqueakObject> objects,
+                                            SqueakObject candidate) {
+        for (SqueakObject object : objects) {
+            if (object == candidate) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<SqueakObject> moveLeadingObjectsToFront(
+            List<SqueakObject> objects, List<SqueakObject> leading) {
+        List<SqueakObject> ordered = new ArrayList<>(objects.size());
+        IdentityHashMap<SqueakObject, Boolean> moved =
+                new IdentityHashMap<>(leading.size() * 2);
+        for (SqueakObject object : leading) {
+            ordered.add(object);
+            moved.put(object, Boolean.TRUE);
+        }
+        for (SqueakObject object : objects) {
+            if (!moved.containsKey(object)) {
+                ordered.add(object);
+            }
+        }
+        return ordered;
+    }
+
+    private SqueakObject specialObject(int index) {
+        Object[] pointers = specialObjectsArray.pointers;
+        if (pointers == null || index < 0 || index >= pointers.length) {
+            return null;
+        }
+        Object value = pointers[index];
+        return value instanceof SqueakObject ? (SqueakObject) value : null;
+    }
+
+    private static int compactClassIndex(
+            SqueakObject object, Map<SqueakObject, Integer> compactClassIndexes) {
+        if (!(object.sqClass instanceof SqueakObject)) {
+            return 0;
+        }
+        Integer index = compactClassIndexes.get((SqueakObject) object.sqClass);
+        return index == null ? 0 : index;
+    }
+
+    private void writePlaceholder(DataOutput ser,
+                                  Map<SqueakObject, Integer> oops,
+                                  SqueakObject nilObject,
+                                  List<SqueakObject> objects) throws IOException {
+        Integer classOop = null;
+        if (nilObject != null && nilObject.sqClass instanceof SqueakObject) {
+            classOop = oops.get((SqueakObject) nilObject.sqClass);
+        }
+        if (classOop == null && !objects.isEmpty()
+                && objects.get(0).sqClass instanceof SqueakObject) {
+            classOop = oops.get((SqueakObject) objects.get(0).sqClass);
+        }
+        if (classOop == null || classOop < 32 || (classOop & 3) != 0) {
+            throw new IOException("cannot write the image placeholder class");
+        }
+        ser.writeInt(Squeak.HeaderTypeClass + classOop);
+        ser.writeInt(1 << 2); // one header word, zero data words
     }
 
     private SqueakObject activeProcess() {
@@ -581,21 +717,48 @@ public class SqueakImage {
     }
 
     private void writeObject(DataOutput ser, SqueakObject object,
-                             Map<SqueakObject, Integer> oops) throws IOException {
-        int dataWords = objectWordCount(object);
+                             Map<SqueakObject, Integer> oops,
+                             ImageHeaderPlanner.HeaderPlan plan) throws IOException {
+        int dataWords = plan.dataWords();
+        int size = plan.totalWords();
         int format = normalizedFormat(object);
         int hash = object.hash & 0xFFF;
+        int formatAndHash = ((format & 0xF) << 8) | (hash << 17);
 
-        // Always use a 3-word SizeAndClass header: it does not depend on the
-        // compact class table and keeps the writer simple.
-        ser.writeInt(((dataWords + 1) << 2) | Squeak.HeaderTypeSizeAndClass);
-        int classOop = oopOf(object.sqClass, oops);
-        if (classOop < 32) {
-            // Values 1..31 are compact class indices, not oops.
-            throw new IOException("class oop " + classOop + " is in the compact class range");
+        if (plan.kind() != ImageHeaderPlanner.HeaderKind.SIZE_AND_CLASS
+                && size > ImageHeaderPlanner.MAX_SMALL_OBJECT_WORDS) {
+            throw new IOException("object size " + size
+                    + " does not fit a short or class header");
         }
-        ser.writeInt(classOop);
-        ser.writeInt(((format & 0xF) << 8) | (hash << 17));
+
+        switch (plan.kind()) {
+            case SHORT:
+                if (plan.compactClassIndex() < 1
+                        || plan.compactClassIndex() > ImageHeaderPlanner.MAX_COMPACT_CLASS_INDEX) {
+                    throw new IOException("invalid compact class index: "
+                            + plan.compactClassIndex());
+                }
+                ser.writeInt(formatAndHash
+                        | (plan.compactClassIndex() << 12)
+                        | (size << 2)
+                        | Squeak.HeaderTypeShort);
+                break;
+            case CLASS: {
+                int classOop = checkedClassOop(object, oops);
+                ser.writeInt(classOop + Squeak.HeaderTypeClass);
+                ser.writeInt(formatAndHash | (size << 2));
+                break;
+            }
+            case SIZE_AND_CLASS: {
+                int classOop = checkedClassOop(object, oops);
+                ser.writeInt((size << 2) | Squeak.HeaderTypeSizeAndClass);
+                ser.writeInt(classOop);
+                ser.writeInt(formatAndHash);
+                break;
+            }
+            default:
+                throw new IOException("unknown object header kind: " + plan.kind());
+        }
 
         if (format < 5) {
             writePointers(ser, object, oops);
@@ -607,6 +770,19 @@ public class SqueakImage {
             writePointers(ser, object, oops);
             writeBytes(ser, object);
         }
+    }
+
+    private int checkedClassOop(SqueakObject object,
+                                Map<SqueakObject, Integer> oops) throws IOException {
+        int classOop = oopOf(object.sqClass, oops);
+        if (classOop < 32) {
+            // Values 1..31 are compact class indices, not oops.
+            throw new IOException("class oop " + classOop + " is in the compact class range");
+        }
+        if ((classOop & 3) != 0) {
+            throw new IOException("class oop " + classOop + " is not word aligned");
+        }
+        return classOop;
     }
 
     private int oopOf(Object value, Map<SqueakObject, Integer> oops) throws IOException {

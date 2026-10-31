@@ -1,6 +1,6 @@
 # DodoTalk 文档索引
 
-> 最后更新：2026-10-30
+> 最后更新：2026-10-31
 > 文档流程见 [ADR-0001](adr/ADR-0001-documentation-workflow.md)。
 
 ## 1. 技术规范
@@ -50,6 +50,7 @@
 | [ISSUE-0005](issues/ISSUE-0005-raw-image-format-support.md) | 支持原版 Squeak raw `.image` 格式与快照交叉验证 | done | [DESIGN-0005](design/DESIGN-0005-raw-image-format-support.md) |
 | [ISSUE-0006](issues/ISSUE-0006-keyboard-poll-throttle-and-interrupt-flag.md) | 键盘空闲轮询限速与中断标志修复 | done | [DESIGN-0006](design/DESIGN-0006-keyboard-poll-throttle-and-interrupt-flag.md) |
 | [ISSUE-0007](issues/ISSUE-0007-launcher-runtime-options.md) | Launcher 运行时参数配置 | discussing | [DESIGN-0007](design/DESIGN-0007-launcher-runtime-options.md) |
+| [ISSUE-0008](issues/ISSUE-0008-image-writer-compact-headers.md) | 映像 writer 使用 compact object headers | done | [DESIGN-0008](design/DESIGN-0008-image-writer-compact-headers.md) |
 
 当前 ADR：[ADR-0003](adr/ADR-0003-mouse-polling-throttle.md) 将 MVC 空闲鼠标
 轮询限制在 250Hz（关联 ISSUE-0004 / DESIGN-0004）；[ADR-0005](adr/ADR-0005-input-poll-throttle-keyboard.md)
@@ -57,7 +58,9 @@
 [ADR-0006](adr/ADR-0006-raw-gzip-image-compatibility.md) 确定 raw/gzip 映像兼容
 与 Save As 固定 raw（关联 ISSUE-0005 / DESIGN-0005）；
 [ADR-0007](adr/ADR-0007-raw-test-image-discovery.md) 更新测试映像发现以同时支持
-raw/gzip；[ADR-0004](adr/ADR-0004-documentation-taxonomy.md) 确定
+raw/gzip；[ADR-0008](adr/ADR-0008-image-writer-compact-headers.md) 确定 writer
+输出混合 object header、reader 保持三种 header 兼容（关联 ISSUE-0008 /
+DESIGN-0008）；[ADR-0004](adr/ADR-0004-documentation-taxonomy.md) 确定
 `specifications/`、`guides/`、`plans/` 的文档分层。
 
 ## 5. 模板
