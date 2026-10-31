@@ -2,7 +2,7 @@
 
 > 日期：2026-10-31（raw/gzip 映像兼容与快照上下文修复完成后更新）
 > 依据：当前代码审查、`./gradlew clean test`（232 个测试；无 image 时集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer 已落地。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer、输入限速回归测试稳定化已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
 
@@ -11,7 +11,7 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 230 个 JUnit 5 测试；无 image 时集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
+| 测试 | 232 个 JUnit 5 测试；无 image 时集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz` 或 raw `*.image`；Primitive 97 可保存并重新加载；writer 输出 short/class/size-and-class 混合 header，保存体积与原版一致 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
@@ -134,6 +134,14 @@
 - 详见 [ISSUE-0008](../issues/ISSUE-0008-image-writer-compact-headers.md) /
   [DESIGN-0008](../design/DESIGN-0008-image-writer-compact-headers.md) /
   [ADR-0008](../adr/ADR-0008-image-writer-compact-headers.md)。
+
+### P1-9（已完成）：输入限速回归测试稳定化
+
+- 输入限速测试改用相邻轮询最小间隔和重复采样最小耗时，移除 `Object.wait()`
+  立即返回的时序假设。
+- 2 核 + 8 忙线程下 `org.dodotalk.input.*` 连续 20 轮全绿；负向对照通过。
+- 详见 [ISSUE-0010](../issues/ISSUE-0010-input-throttle-test-stability.md) /
+  [DESIGN-0010](../design/DESIGN-0010-input-throttle-test-stability.md)。
 
 ### P1-7（下一迭代候选）：Launcher 运行时参数
 

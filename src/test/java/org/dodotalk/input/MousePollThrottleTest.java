@@ -22,49 +22,42 @@ class MousePollThrottleTest {
     @DisplayName("idle button polling is capped near the configured rate")
     void idleButtonPollingIsCapped() {
         MouseStatus status = new MouseStatus();
-
-        long start = System.nanoTime();
-        int polls = 0;
-        while (System.nanoTime() - start < 100_000_000L) {
-            status.pollMouseButtons();
-            polls++;
-        }
-        long elapsed = System.nanoTime() - start;
-        double hz = polls * 1_000_000_000.0 / elapsed;
-
-        assertTrue(hz <= MouseStatus.POLL_RATE_HZ * 1.5,
-                "polling was not capped: " + hz + " Hz");
-        assertTrue(hz >= MouseStatus.POLL_RATE_HZ * 0.5,
-                "polling was throttled too aggressively: " + hz + " Hz");
+        InputTestTiming.assertThrottled("mouse buttons", status::pollMouseButtons);
     }
 
     @Test
     @DisplayName("normal frame cadence is not delayed by the idle cap")
     void normalFrameCadenceIsNotDelayed() throws Exception {
-        MouseStatus status = new MouseStatus();
-        status.pollMouseButtons();
+        long minimum = Long.MAX_VALUE;
+        for (int i = 0; i < 10; i++) {
+            MouseStatus status = new MouseStatus();
+            status.pollMouseButtons();
+            Thread.sleep(20);
 
-        Thread.sleep(20);
-        long start = System.nanoTime();
-        status.pollMouseButtons();
-        long elapsedMillis = (System.nanoTime() - start) / 1_000_000L;
+            long start = System.nanoTime();
+            status.pollMouseButtons();
+            minimum = Math.min(minimum, System.nanoTime() - start);
+        }
 
-        assertTrue(elapsedMillis < 20,
-                "a 50 fps poll was delayed by the idle cap: " + elapsedMillis + "ms");
+        assertTrue(minimum < InputTestTiming.EXPECTED_INTERVAL_NANOS * 3 / 4,
+                "a 50 fps poll was delayed by the idle cap: " + minimum + "ns");
     }
 
     @Test
     @DisplayName("point and button primitives have independent poll gates")
     void pointAndButtonGatesAreIndependent() {
-        MouseStatus status = new MouseStatus();
-        status.pollMousePoint();
+        long minimum = Long.MAX_VALUE;
+        for (int i = 0; i < InputTestTiming.SAMPLES; i++) {
+            MouseStatus status = new MouseStatus();
+            status.pollMousePoint(); // initialize only the point gate
 
-        long start = System.nanoTime();
-        status.pollMouseButtons();
-        long elapsedMillis = (System.nanoTime() - start) / 1_000_000L;
+            long start = System.nanoTime();
+            status.pollMouseButtons();
+            minimum = Math.min(minimum, System.nanoTime() - start);
+        }
 
-        assertTrue(elapsedMillis < 20,
-                "paired point/button polls were delayed: " + elapsedMillis + "ms");
+        assertTrue(minimum < InputTestTiming.EXPECTED_INTERVAL_NANOS * 3 / 4,
+                "paired point/button polls were delayed: " + minimum + "ns");
     }
 
     @Test
@@ -95,18 +88,22 @@ class MousePollThrottleTest {
     @Test
     @DisplayName("a queued transition bypasses the idle cap")
     void queuedTransitionBypassesIdleCap() {
-        MouseStatus status = new MouseStatus();
-        status.mousePressed(mouseEvent(MouseEvent.BUTTON1));
+        long minimum = Long.MAX_VALUE;
+        for (int i = 0; i < InputTestTiming.SAMPLES; i++) {
+            MouseStatus status = new MouseStatus();
+            status.pollMousePoint(); // establish the point poll gate
+            status.mousePressed(mouseEvent(MouseEvent.BUTTON1));
 
-        assertEquals(MouseStatus.RED, status.pollMouseButtons());
-        long start = System.nanoTime();
-        var point = status.pollMousePoint();
-        long elapsedMillis = (System.nanoTime() - start) / 1_000_000L;
+            long start = System.nanoTime();
+            var point = status.pollMousePoint();
+            minimum = Math.min(minimum, System.nanoTime() - start);
 
-        assertEquals(10, point.x, "the queued point was not returned");
-        assertEquals(20, point.y, "the queued point was not returned");
-        assertTrue(elapsedMillis < 20,
-                "a queued transition was delayed by the idle cap: " + elapsedMillis + "ms");
+            assertEquals(10, point.x, "the queued point was not returned");
+            assertEquals(20, point.y, "the queued point was not returned");
+        }
+
+        assertTrue(minimum < InputTestTiming.EXPECTED_INTERVAL_NANOS * 3 / 4,
+                "a queued transition was delayed by the idle cap: " + minimum + "ns");
     }
 
     @Test
@@ -116,19 +113,21 @@ class MousePollThrottleTest {
         status.pollMouseButtons(); // establish the poll gate
 
         final long[] polls = new long[1];
+        final long[] elapsed = new long[1];
         Thread poller = new Thread(() -> {
             long start = System.nanoTime();
             while (System.nanoTime() - start < 300_000_000L) {
                 status.pollMouseButtons();
                 polls[0]++;
             }
+            elapsed[0] = System.nanoTime() - start;
         });
         poller.start();
         Thread.sleep(30);
         poller.interrupt();
         poller.join(1000);
 
-        double hz = polls[0] / 0.3;
+        double hz = polls[0] * 1_000_000_000.0 / elapsed[0];
         assertFalse(poller.isInterrupted(),
                 "the poll gate must not leave the VM thread interrupted");
         assertTrue(hz <= MouseStatus.POLL_RATE_HZ * 1.5,

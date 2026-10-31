@@ -52,6 +52,7 @@
 | [ISSUE-0007](issues/ISSUE-0007-launcher-runtime-options.md) | Launcher 运行时参数配置 | discussing | [DESIGN-0007](design/DESIGN-0007-launcher-runtime-options.md) |
 | [ISSUE-0008](issues/ISSUE-0008-image-writer-compact-headers.md) | 映像 writer 使用 compact object headers | done | [DESIGN-0008](design/DESIGN-0008-image-writer-compact-headers.md) |
 | [ISSUE-0009](issues/ISSUE-0009-class-header-format-type-bit.md) | 2-word class header 补充格式字类型位 | done | [DESIGN-0009](design/DESIGN-0009-class-header-format-type-bit.md) |
+| [ISSUE-0010](issues/ISSUE-0010-input-throttle-test-stability.md) | 输入限速回归测试在负载下稳定化 | done | [DESIGN-0010](design/DESIGN-0010-input-throttle-test-stability.md) |
 
 当前 ADR：[ADR-0003](adr/ADR-0003-mouse-polling-throttle.md) 将 MVC 空闲鼠标
 轮询限制在 250Hz（关联 ISSUE-0004 / DESIGN-0004）；[ADR-0005](adr/ADR-0005-input-poll-throttle-keyboard.md)

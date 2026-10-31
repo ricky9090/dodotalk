@@ -6,7 +6,7 @@ Issue 文档记录“为什么做、做什么、验收标准是什么”。每�
 - 编号：本地顺序号，四位补零，不复用
 - 模板：[issue.md](../templates/issue.md)
 - 状态：`draft` / `discussing` / `accepted` / `implementing` / `done` / `deferred` / `rejected`
-- 当前下一个可用编号：`ISSUE-0010`
+- 当前下一个可用编号：`ISSUE-0011`
 - 已创建：
 
 | ID | 标题 | 状态 | 设计 |
@@ -20,5 +20,6 @@ Issue 文档记录“为什么做、做什么、验收标准是什么”。每�
 | [ISSUE-0007](ISSUE-0007-launcher-runtime-options.md) | Launcher 运行时参数配置 | discussing | [DESIGN-0007](../design/DESIGN-0007-launcher-runtime-options.md) |
 | [ISSUE-0008](ISSUE-0008-image-writer-compact-headers.md) | 映像 writer 使用 compact object headers | done | [DESIGN-0008](../design/DESIGN-0008-image-writer-compact-headers.md) |
 | [ISSUE-0009](ISSUE-0009-class-header-format-type-bit.md) | 2-word class header 补充格式字类型位 | done | [DESIGN-0009](../design/DESIGN-0009-class-header-format-type-bit.md) |
+| [ISSUE-0010](ISSUE-0010-input-throttle-test-stability.md) | 输入限速回归测试在负载下稳定化 | done | [DESIGN-0010](../design/DESIGN-0010-input-throttle-test-stability.md) |
 
 Issue 接受（`accepted`）后再创建同号的 Design 文档。

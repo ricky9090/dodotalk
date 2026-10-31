@@ -136,6 +136,9 @@ Squeak 2.2 同时存在鼠标和键盘的无延迟忙等，例如：
   输入唤醒、pending transition 不被拖延、中断后限速保持。
 - `KeyboardPollThrottleTest`：108/109 空队列限速、非空队列立即返回、按键唤醒、
   中断后限速保持。
+- `InputTestTiming`：限速和 bypass 断言基于相邻轮询的最小间隔/最小耗时，而不是
+  墙钟平均速率；调度暂停只会拉长间隔，不会造成假失败。详见
+  [ISSUE-0010](../../issues/ISSUE-0010-input-throttle-test-stability.md)。
 - `InterruptAndStatsTest`：`interruptPending`、Primitive 133、诊断统计。
 
 人工验收记录见 [输入可靠性修复（2026-10-24）](../../archives/input-reliability-2026-10-24.md)。
@@ -146,5 +149,6 @@ Squeak 2.2 同时存在鼠标和键盘的无延迟忙等，例如：
 - [ADR-0005：输入轮询限速扩展到键盘原语](../../adr/ADR-0005-input-poll-throttle-keyboard.md)
 - [ISSUE-0004：MVC 弹窗 CPU 满载](../../issues/ISSUE-0004-mvc-popup-polling-cpu.md)
 - [ISSUE-0006：键盘空闲轮询与中断标志](../../issues/ISSUE-0006-keyboard-poll-throttle-and-interrupt-flag.md)
+- [ISSUE-0010：输入限速回归测试稳定化](../../issues/ISSUE-0010-input-throttle-test-stability.md)
 - [运行时诊断规范](diagnostics.md)
 - [显示模型规范](display-model.md)

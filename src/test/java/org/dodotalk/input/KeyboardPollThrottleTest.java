@@ -23,38 +23,16 @@ class KeyboardPollThrottleTest {
     @DisplayName("idle keyboard peek polling is capped near the configured rate")
     void idlePeekPollingIsCapped() {
         KeyboardQueue queue = new KeyboardQueue();
-
-        long start = System.nanoTime();
-        int polls = 0;
-        while (System.nanoTime() - start < 100_000_000L) {
-            assertEquals(0, queue.pollPeek());
-            polls++;
-        }
-        double hz = polls * 1_000_000_000.0 / (System.nanoTime() - start);
-
-        assertTrue(hz <= KeyboardQueue.POLL_RATE_HZ * 1.5,
-                "keyboard polling was not capped: " + hz + " Hz");
-        assertTrue(hz >= KeyboardQueue.POLL_RATE_HZ * 0.5,
-                "keyboard polling was throttled too aggressively: " + hz + " Hz");
+        InputTestTiming.assertThrottled("keyboard peek",
+                () -> assertEquals(0, queue.pollPeek()));
     }
 
     @Test
     @DisplayName("idle keyboard next polling is capped near the configured rate")
     void idleNextPollingIsCapped() {
         KeyboardQueue queue = new KeyboardQueue();
-
-        long start = System.nanoTime();
-        int polls = 0;
-        while (System.nanoTime() - start < 100_000_000L) {
-            assertEquals(Integer.MIN_VALUE, queue.pollNext());
-            polls++;
-        }
-        double hz = polls * 1_000_000_000.0 / (System.nanoTime() - start);
-
-        assertTrue(hz <= KeyboardQueue.POLL_RATE_HZ * 1.5,
-                "keyboard next polling was not capped: " + hz + " Hz");
-        assertTrue(hz >= KeyboardQueue.POLL_RATE_HZ * 0.5,
-                "keyboard next polling was throttled too aggressively: " + hz + " Hz");
+        InputTestTiming.assertThrottled("keyboard next",
+                () -> assertEquals(Integer.MIN_VALUE, queue.pollNext()));
     }
 
     @Test
@@ -63,13 +41,10 @@ class KeyboardPollThrottleTest {
         KeyboardQueue queue = new KeyboardQueue();
         queue.pollPeek(); // establish the peek poll gate
 
-        queue.keyTyped(typedKey('x'));
-        long start = System.nanoTime();
-        assertEquals('x', queue.pollPeek());
-        long elapsedMillis = (System.nanoTime() - start) / 1_000_000L;
-
-        assertTrue(elapsedMillis < 20,
-                "a queued character was delayed by the idle cap: " + elapsedMillis + "ms");
+        InputTestTiming.assertBypassesThrottle("queued character", () -> {
+            queue.keyTyped(typedKey('x'));
+            assertEquals('x', queue.pollPeek());
+        });
     }
 
     @Test
@@ -104,19 +79,21 @@ class KeyboardPollThrottleTest {
         queue.pollPeek(); // establish the poll gate
 
         final long[] polls = new long[1];
+        final long[] elapsed = new long[1];
         Thread poller = new Thread(() -> {
             long start = System.nanoTime();
             while (System.nanoTime() - start < 300_000_000L) {
                 queue.pollPeek();
                 polls[0]++;
             }
+            elapsed[0] = System.nanoTime() - start;
         });
         poller.start();
         sleepSilently(30);
         poller.interrupt();
         poller.join(1000);
 
-        double hz = polls[0] / 0.3;
+        double hz = polls[0] * 1_000_000_000.0 / elapsed[0];
         assertFalse(poller.isInterrupted(),
                 "the poll gate must not leave the VM thread interrupted");
         assertTrue(hz <= KeyboardQueue.POLL_RATE_HZ * 1.5,
