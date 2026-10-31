@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SKIP_DIRS = {"build", ".git", "logs", ".gradle"}
+SKIP_DIRS = {"build", ".git", "logs", ".gradle", "temp"}
 MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 DOC_PATH_MENTION = re.compile(r"(?<![\w/])doc/[A-Za-z0-9_./-]+\.md")
 TEXT_SUFFIXES = {".md", ".java", ".kts", ".gradle", ".txt"}

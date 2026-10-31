@@ -579,7 +579,7 @@ public class SqueakImage {
             throw new IOException("cannot write the image placeholder class");
         }
         ser.writeInt(Squeak.HeaderTypeClass + classOop);
-        ser.writeInt(1 << 2); // one header word, zero data words
+        ser.writeInt((1 << 2) | Squeak.HeaderTypeClass); // zero data words, 2-word header
     }
 
     private SqueakObject activeProcess() {
@@ -746,7 +746,8 @@ public class SqueakImage {
             case CLASS: {
                 int classOop = checkedClassOop(object, oops);
                 ser.writeInt(classOop + Squeak.HeaderTypeClass);
-                ser.writeInt(formatAndHash | (size << 2));
+                // Both header words carry the type marker in a 2-word header.
+                ser.writeInt(formatAndHash | (size << 2) | Squeak.HeaderTypeClass);
                 break;
             }
             case SIZE_AND_CLASS: {
@@ -908,10 +909,18 @@ public class SqueakImage {
             int format = 0;
             int hash = 0;
             int header = intFromInputSwapped(in, doSwap);
-            switch (header & Squeak.HeaderTypeMask) {
+            int headerType = header & Squeak.HeaderTypeMask;
+            switch (headerType) {
                 case Squeak.HeaderTypeSizeAndClass:
                     nWords = header >> 2;
-                    classInt = intFromInputSwapped(in, doSwap) - Squeak.HeaderTypeSizeAndClass;
+                    int classWord = intFromInputSwapped(in, doSwap);
+                    if ((classWord & Squeak.HeaderTypeMask) != Squeak.HeaderTypeSizeAndClass) {
+                        throw new SqueakImageFormatException(
+                                "3-word object at offset " + i
+                                        + " has a class word with header type "
+                                        + (classWord & Squeak.HeaderTypeMask));
+                    }
+                    classInt = classWord - Squeak.HeaderTypeSizeAndClass;
                     header = intFromInputSwapped(in, doSwap);
                     i = i + 12;
                     break;
@@ -931,9 +940,16 @@ public class SqueakImage {
                     break;
                 default:
                     throw new SqueakImageFormatException(
-                            "unknown object header type at offset " + i + ": " + (header & Squeak.HeaderTypeMask));
+                            "unknown object header type at offset " + i + ": " + headerType);
             }
             int baseAddr = i - 4; //0-rel byte oop of this object (base header)
+            if ((header & Squeak.HeaderTypeMask) != headerType) {
+                throw new SqueakImageFormatException(
+                        "object at offset " + baseAddr
+                                + " has header type " + headerType
+                                + " but format word type "
+                                + (header & Squeak.HeaderTypeMask));
+            }
             nWords--;  //length includes base header which we have already read
             format = ((header >> 8) & 15);
             hash = ((header >> 17) & 4095);

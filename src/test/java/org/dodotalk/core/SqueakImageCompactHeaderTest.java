@@ -17,6 +17,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SqueakImageCompactHeaderTest {
@@ -183,6 +184,48 @@ class SqueakImageCompactHeaderTest {
         }
     }
 
+    @Test
+    @DisplayName("reader rejects a class header whose format word lacks the type marker")
+    void readerRejectsMalformedClassHeader() throws Exception {
+        byte[] saved = saveRaw("malformed-class-source.image");
+        int formatWordOffset = 64 + 4; // first object: class word at 64, format word at 68
+        int formatWord = ByteBuffer.wrap(saved).order(ByteOrder.BIG_ENDIAN)
+                .getInt(formatWordOffset);
+        ByteBuffer.wrap(saved).order(ByteOrder.BIG_ENDIAN)
+                .putInt(formatWordOffset, formatWord & ~Squeak.HeaderTypeMask);
+        Path malformed = tempDir.resolve("malformed-class.image");
+        Files.write(malformed, saved);
+
+        assertThrows(SqueakImageFormatException.class,
+                () -> new SqueakImage(malformed.toFile()));
+    }
+
+    @Test
+    @DisplayName("reader rejects a 3-word header whose format word has a type marker")
+    void readerRejectsMalformedSizeAndClassHeader() throws Exception {
+        byte[] saved = saveRaw("malformed-large-source.image");
+        Layout layout = parse(saved);
+        Obj large = null;
+        for (Obj object : layout.objects) {
+            if (object.type == Squeak.HeaderTypeSizeAndClass) {
+                large = object;
+                break;
+            }
+        }
+        assertNotNull(large, "test image must contain a 3-word header");
+        int formatWordOffset = large.dataOffset - 4;
+        int formatWord = ByteBuffer.wrap(saved).order(ByteOrder.BIG_ENDIAN)
+                .getInt(formatWordOffset);
+        ByteBuffer.wrap(saved).order(ByteOrder.BIG_ENDIAN)
+                .putInt(formatWordOffset,
+                        (formatWord & ~Squeak.HeaderTypeMask) | Squeak.HeaderTypeClass);
+        Path malformed = tempDir.resolve("malformed-large.image");
+        Files.write(malformed, saved);
+
+        assertThrows(SqueakImageFormatException.class,
+                () -> new SqueakImage(malformed.toFile()));
+    }
+
     private byte[] saveRaw(String name) throws Exception {
         SqueakImage image = new SqueakImage(TestImages.miniImage());
         new SqueakVM(image);
@@ -273,6 +316,16 @@ class SqueakImageCompactHeaderTest {
             int dataWords = totalWords - 1;
             if (dataWords < 0) {
                 throw new AssertionError("negative data size at relative offset " + relative);
+            }
+            if ((formatWord & Squeak.HeaderTypeMask) != type) {
+                throw new AssertionError("object at relative offset " + relative
+                        + " has header type " + type
+                        + " but format word type " + (formatWord & Squeak.HeaderTypeMask));
+            }
+            if (type == Squeak.HeaderTypeSizeAndClass
+                    && (classRef & Squeak.HeaderTypeMask) != Squeak.HeaderTypeSizeAndClass) {
+                throw new AssertionError("3-word object at relative offset " + relative
+                        + " has class word type " + (classRef & Squeak.HeaderTypeMask));
             }
             Obj object = new Obj();
             object.offset = relative;

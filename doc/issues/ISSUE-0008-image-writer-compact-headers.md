@@ -193,6 +193,7 @@ SqueakJS）也都能读取混合 header；因此可以在**只改 writer** 的�
 | 2026-10-31 | 抽出 `ImageHeaderPlanner` | header 选择和 compact 映射可以独立单元测试 |
 | 2026-10-31 | 新增 `ADR-0008` | 固定 writer 混合 header、reader 保持兼容的长期决策 |
 | 2026-10-31 | 实现完成，自动测试全绿 | 保存体积与原版一致；SqueakJS 1.3.3 headless 加载 raw 映像通过 |
+| 2026-10-31 | cross-review 发现 2-word class header 格式字缺少类型位，由 ISSUE-0009 修复 | 原版 C VM 依赖格式字低位判断 size 位置；DodoTalk reader 增加一致性校验 |
 
 ## 8. 参考
 

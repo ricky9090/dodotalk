@@ -80,7 +80,7 @@ header 分布：short 44,654 / class 24,185 / size-and-class 1,361
 | 类型 | 字数 | 布局 | oop 偏移 |
 |------|------|------|----------|
 | Short | 1 | `hash<<17 \| compactIndex<<12 \| format<<8 \| (dataWords+1)<<2 \| 3` | `+0` |
-| Class | 2 | word0 = `classOop + 1`；word1 = `hash<<17 \| format<<8 \| (dataWords+1)<<2` | `+4` |
+| Class | 2 | word0 = `classOop + 1`；word1 = `hash<<17 \| format<<8 \| (dataWords+1)<<2 \| 1` | `+4` |
 | SizeAndClass | 3 | word0 = `((dataWords+1)<<2) \| 0`；word1 = `classOop`；word2 = `hash<<17 \| format<<8` | `+8` |
 
 约束：
@@ -304,7 +304,7 @@ short header 写入前校验 compact index 在 1–31，size 不超过 63。
 
 ```text
 ./gradlew clean test
-230 tests, 0 failures, 0 skipped
+232 tests, 0 failures, 0 skipped
 ```
 
 体积验证（仓库外测试映像，raw 保存）：
@@ -336,3 +336,7 @@ squeak22-compact.image: squeak: ready; 70,200 old objects
 两者都完成了 partial GC 和 `BitBltPlugin` 加载；缺失的 sources/changes 只产生
 预期的文件警告，不影响映像启动。SqueakJS 报告的 old space 大小与 DodoTalk
 写入的 `endOfMemory` 一致。
+
+后续 cross-review 发现 2-word class header 的格式字缺少类型位；修复与一致性校验
+见 [ISSUE-0009](../issues/ISSUE-0009-class-header-format-type-bit.md) /
+[DESIGN-0009](DESIGN-0009-class-header-format-type-bit.md)。

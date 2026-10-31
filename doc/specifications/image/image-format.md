@@ -7,7 +7,7 @@
 | 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
 | 最后核对 | 2026-10-31 |
 | 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) / [ADR-0008](../../adr/ADR-0008-image-writer-compact-headers.md) |
-| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md) |
+| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md)；[ISSUE-0009](../../issues/ISSUE-0009-class-header-format-type-bit.md) / [DESIGN-0009](../../design/DESIGN-0009-class-header-format-type-bit.md) |
 
 ## 1. 结论
 
@@ -91,6 +91,18 @@ header：
 | class 在 `splOb_CompactClasses` 中且 `dataWords + 1 <= 63` | 1-word short |
 | 其他 `dataWords + 1 <= 63` | 2-word class |
 | 更大或无法使用 compact index | 3-word size-and-class |
+
+header 类型位必须与原版 Squeak 一致：
+
+- short：唯一的 header word 低位为 `HeaderTypeShort`（3）；
+- 2-word class：class word 和 size/format/hash word 的低位都为
+  `HeaderTypeClass`（1）；
+- 3-word size-and-class：size word、class word 和 format word 的低位都为
+  `HeaderTypeSizeAndClass`（0）。
+
+原版 C VM 的 `sizeBitsOf` 根据格式字低位判断 size 放在当前字还是 `oop - 8`；
+如果 2-word class header 的格式字低位写成 0，原版 VM 会把它当成 3-word header，
+导致对象走位错乱。DodoTalk reader 现在会校验类字/格式字的一致性并拒绝这种映像。
 
 compact index 映射自 `specialObjectsArray[splOb_CompactClasses]` 的 0–30 项
 （对应 index 1–31），重复 class 取最小 index；表缺失或格式异常时退化为

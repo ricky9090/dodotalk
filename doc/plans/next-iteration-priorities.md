@@ -1,7 +1,7 @@
 # DodoTalk 下一迭代高优方向
 
 > 日期：2026-10-31（raw/gzip 映像兼容与快照上下文修复完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（230 个测试；无 image 时集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 依据：当前代码审查、`./gradlew clean test`（232 个测试；无 image 时集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
 > 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer 已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
@@ -128,6 +128,9 @@
 - 完整 `squeak22` 映像保存后为 3,576,628 字节，与原版解压后大小相同；
   `mini.image` 为 602,548 字节。
 - SqueakJS 1.3.3 headless 已成功加载并运行新生成的 raw 映像。
+- cross-review 发现 2-word class header 格式字缺少类型位；已由
+  [ISSUE-0009](../issues/ISSUE-0009-class-header-format-type-bit.md) 修复，并增加
+  reader 一致性校验。
 - 详见 [ISSUE-0008](../issues/ISSUE-0008-image-writer-compact-headers.md) /
   [DESIGN-0008](../design/DESIGN-0008-image-writer-compact-headers.md) /
   [ADR-0008](../adr/ADR-0008-image-writer-compact-headers.md)。
