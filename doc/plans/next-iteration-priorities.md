@@ -1,7 +1,7 @@
 # DodoTalk 下一迭代高优方向
 
 > 日期：2026-10-31（raw/gzip 映像兼容与快照上下文修复完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（232 个测试；无 image 时集成测试跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 依据：当前代码审查、`./gradlew clean test`（249 个测试；无 image 时 172 执行/77 跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
 > 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer、输入限速回归测试稳定化已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
@@ -11,7 +11,7 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 232 个 JUnit 5 测试；无 image 时集成测试跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现 |
+| 测试 | 249 个 JUnit 5 测试；无 image 时 172 执行/77 跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现，以及合成映像的解释器骨架回归（ISSUE-0011，17 个用例） |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz` 或 raw `*.image`；Primitive 97 可保存并重新加载；writer 输出 short/class/size-and-class 混合 header，保存体积与原版一致 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
 | 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
@@ -19,7 +19,7 @@
 | 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断；MVC 空闲鼠标/键盘轮询限制在 250Hz（ISSUE-0004 / ISSUE-0006） |
 | 诊断 | 原语调用/失败直方图与分类、定时器延迟、输入队列深度、绘制耗时；stdout + `logs/runtime-stats.log` |
 | 文件 | 150–160、162 已接线；`imageName`/`vmPath`/路径分隔符已修正 |
-| 工程化 | 无 CI（重要但低优先级）；无 GUI 自动化冒烟、无覆盖率门禁、无性能基线 |
+| 工程化 | 无 CI（重要但低优先级）；无 GUI 自动化冒烟、无覆盖率门禁；合成夹具已提供确定性执行刻度（ISSUE-0011），但跨 JDK/硬件基准尚未稳定，benchmark 设计另案完善 |
 
 结论：显示刷新、显示 defer/force、流原语、GC 绑定、Primitive 103 和 96 诊断已经补上。
 96 的剩余失败已确认是压缩 Form 的预期 `unhibernate` 回退，不再作为未知缺陷跟踪。
@@ -159,6 +159,23 @@
 - `doPrimitive` default 行为、失败分类本身要有回归。
 - 新增原语不只靠人工冒烟发现。
 
+### P1-10（已完成）：合成映像夹具与执行刻度
+
+- 见 [ISSUE-0011](../issues/ISSUE-0011-synthetic-test-image-fixture.md) /
+  [DESIGN-0011](../design/DESIGN-0011-synthetic-test-image-fixture.md) /
+  [ADR-0009](../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md)。
+- ✅ 已实现 `SyntheticImageBuilder` + `SyntheticImageFixtureTest`（17 个用例）；
+  解释器内核首次拥有不依赖外部映像的字节码回归网：装载、上下文、分派、`primAdd`、
+  一次发送/缓存/上下文切换/返回、writer 往返、负向 header/compact/Float。
+- ✅ 附带产出确定性执行刻度（`bench` 变体）：`4N+2` 步、栈平衡、结果稳定；
+  **不作为性能门槛**。
+- **分派改造优先级暂缓**：JDK 17 云端沙箱得到表分派 ≈70M/s、switch ≈28M/s；
+  JDK 25 本地得到表 ≈170–180M/s、switch ≈210–220M/s，方向相反，且硬件/系统/
+  运行方式也不同。不能用单次数据排定分派优先级；benchmark 设计需另案完善
+  （固定环境、预热、多轮、中位数、区分手动循环与 `SqueakVM.run()`）。
+- 长期方向（"自造映像"路线）拆为 ISSUE-0012 / 0013 / 0014，尚未创建；
+  详见 ISSUE-0011 §1.5 与 §9.3。**该路线尚未决策**，需单独的 ADR。
+
 ### P1-6：剩余低优先级原语
 
 - 82 `valueWithArgs`、104 `drawLoop`、143–147 等按统计决定。
@@ -177,6 +194,7 @@
 | 3 | 全屏/缩放/光标决策 | 二选一：实现并 remap display，或明确固定尺寸并删除死代码 | 无假成功；文档写明策略 |
 | 4 | 快照交叉验证 | 用原版 Squeak 2.2 打开 DodoTalk 快照；评估 raw `.image` 支持 | 至少一个快照可被原版打开，或记录明确阻塞点 |
 | 5 | 原语测试网 | 正常 + 失败路径；default 行为回归 | 新增原语有测试兜底 |
+| 5.5 | **已完成** 合成映像夹具 + 执行刻度 | 独立实现 2.2 格式的测试侧写入器；ARITH/SEND/BENCH 三个变体 | 解释器内核首次有端到端字节码回归；执行步数可复现；性能基准另案 |
 | 6 | 工程化 | 本地 GUI 冒烟脚本；CI 保持低优先级 | 手工验收步骤可复现 |
 
 ## 5. 明确后置
@@ -194,11 +212,11 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 218；
+4. `./gradlew clean test` 全绿，测试数不低于当前 249；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论
 
-96、103、MVC 弹窗轮询限速、raw/gzip 映像兼容与 SqueakJS 1.3.3 交叉验证已完成。
-接下来优先补 Launcher 运行时参数、原语测试网和全屏/缩放/光标策略；
-CI 与声音/网络继续后置。
+96、103、MVC 弹窗轮询限速、raw/gzip 映像兼容、SqueakJS 1.3.3 交叉验证与合成映像
+夹具（含确定性执行刻度）已完成。接下来优先补 Launcher 运行时参数与原语测试网；
+全屏/缩放/光标策略待决策，benchmark 设计与分派改造优先级暂缓，CI 与声音/网络继续后置。

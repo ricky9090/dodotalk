@@ -19,5 +19,6 @@ Design 文档记录“怎么做、为什么这样设计、如何测试和回滚�
 | [DESIGN-0008](DESIGN-0008-image-writer-compact-headers.md) | 映像 writer 使用混合 object headers | implemented | [ISSUE-0008](../issues/ISSUE-0008-image-writer-compact-headers.md) |
 | [DESIGN-0009](DESIGN-0009-class-header-format-type-bit.md) | 2-word class header 的格式字类型位与一致性校验 | implemented | [ISSUE-0009](../issues/ISSUE-0009-class-header-format-type-bit.md) |
 | [DESIGN-0010](DESIGN-0010-input-throttle-test-stability.md) | 输入限速回归测试稳定化 | implemented | [ISSUE-0010](../issues/ISSUE-0010-input-throttle-test-stability.md) |
+| [DESIGN-0011](DESIGN-0011-synthetic-test-image-fixture.md) | 合成最小可运行 Squeak 2.2 映像夹具（映像格式的可执行规格） | implemented | [ISSUE-0011](../issues/ISSUE-0011-synthetic-test-image-fixture.md) |
 
 Design 接受后再开始编码；实现完成后补“实施记录”和测试证据。

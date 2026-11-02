@@ -53,6 +53,7 @@
 | [ISSUE-0008](issues/ISSUE-0008-image-writer-compact-headers.md) | 映像 writer 使用 compact object headers | done | [DESIGN-0008](design/DESIGN-0008-image-writer-compact-headers.md) |
 | [ISSUE-0009](issues/ISSUE-0009-class-header-format-type-bit.md) | 2-word class header 补充格式字类型位 | done | [DESIGN-0009](design/DESIGN-0009-class-header-format-type-bit.md) |
 | [ISSUE-0010](issues/ISSUE-0010-input-throttle-test-stability.md) | 输入限速回归测试在负载下稳定化 | done | [DESIGN-0010](design/DESIGN-0010-input-throttle-test-stability.md) |
+| [ISSUE-0011](issues/ISSUE-0011-synthetic-test-image-fixture.md) | 合成最小可运行 Squeak 2.2 映像夹具（映像格式的可执行规格） | done | [DESIGN-0011](design/DESIGN-0011-synthetic-test-image-fixture.md) |
 
 当前 ADR：[ADR-0003](adr/ADR-0003-mouse-polling-throttle.md) 将 MVC 空闲鼠标
 轮询限制在 250Hz（关联 ISSUE-0004 / DESIGN-0004）；[ADR-0005](adr/ADR-0005-input-poll-throttle-keyboard.md)
@@ -63,7 +64,12 @@
 raw/gzip；[ADR-0008](adr/ADR-0008-image-writer-compact-headers.md) 确定 writer
 输出混合 object header、reader 保持三种 header 兼容（关联 ISSUE-0008 /
 DESIGN-0008）；[ADR-0004](adr/ADR-0004-documentation-taxonomy.md) 确定
-`specifications/`、`guides/`、`plans/` 的文档分层。
+`specifications/`、`guides/`、`plans/` 的文档分层；
+[ADR-0009](adr/ADR-0009-synthetic-fixture-over-downloaded-image.md) 确定
+"优先自建合成映像夹具，而非下载真实映像"，并明确合成夹具**不替代**真实映像测试、
+**不**为"造含 Smalltalk 库的新映像"开绿灯（关联 ISSUE-0011 / DESIGN-0011）。
+ADR-0009 的补充记录指出：JDK 17 云端沙箱与 JDK 25 本地的分派对照结果相反，
+benchmark 设计与分派改造优先级暂缓。
 
 ## 5. 模板
 

@@ -5,9 +5,9 @@
 | 状态 | current（raw + gzip + mixed headers） |
 | 适用代码 | `SqueakImage`、`Starter`、Primitive 97/121/142 |
 | 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
-| 最后核对 | 2026-10-31 |
-| 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) / [ADR-0008](../../adr/ADR-0008-image-writer-compact-headers.md) |
-| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md)；[ISSUE-0009](../../issues/ISSUE-0009-class-header-format-type-bit.md) / [DESIGN-0009](../../design/DESIGN-0009-class-header-format-type-bit.md) |
+| 最后核对 | 2026-11-02 |
+| 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) / [ADR-0008](../../adr/ADR-0008-image-writer-compact-headers.md) / [ADR-0009](../../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md) |
+| 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md)；[ISSUE-0009](../../issues/ISSUE-0009-class-header-format-type-bit.md) / [DESIGN-0009](../../design/DESIGN-0009-class-header-format-type-bit.md)；[ISSUE-0011](../../issues/ISSUE-0011-synthetic-test-image-fixture.md) / [DESIGN-0011](../../design/DESIGN-0011-synthetic-test-image-fixture.md) |
 
 ## 1. 结论
 
@@ -220,3 +220,99 @@ SqueakJS 可能比原版 VM 更宽容，因此验证通过是互操作必要条�
   - GC 压缩后的对象表枚举安全
 - `src/test/java/org/dodotalk/TestImages.java`
   - raw/gzip 测试映像发现
+- `src/test/java/org/dodotalk/core/SyntheticImageBuilder.java`
+  - 测试侧合成映像生成器（ARITH / SEND / BENCH）
+- `src/test/java/org/dodotalk/core/SyntheticImageFixtureTest.java`
+  - 17 个夹具回归用例（装载、分派、发送、writer 往返、负向）
+
+## 6. 合成夹具（测试侧生成器）
+
+`SyntheticImageBuilder` 在每次测试运行时现场生成一个最小 Squeak 2.2 映像，
+不提交任何二进制文件。它**不复用** `SqueakImage.writeImage`，只复用生产 reader
+与解释器；生成器主要用于解释器骨架回归，不是完整 UI/库覆盖。
+
+### 6.1 映像 header
+
+- 版本 `6502`，`headerSize = 64`（9 个大端 int 后补零到 64 字节）；
+- `oldBaseAddr = 0x10000000`，保证所有 oop ≥ 32，不会被
+  `SqueakObject.install` 误判为 compact class index；
+- `endOfMemory` 精确等于对象堆字节数，**不得有尾部 padding**；reader 会把 padding
+  当成 short header 并报 `negative size`；
+- `specialObjectsOop` 指向 `specialObjectsArray`，该对象最后序列化。
+
+### 6.2 对象 header 与 oop
+
+生成器只写 3 字 `HeaderTypeSizeAndClass`：
+
+```text
+w0 = (dataWords + 1) << 2
+w1 = classOop
+w2 = (hash << 17) | (format << 8)
+oop = oldBaseAddr + heapOffset + 8
+```
+
+`w0`/`w1`/`w2` 的低 2 位必须为 0。2 字 `HeaderTypeClass` 的两个字低位为 1，
+但本生成器不使用。
+
+### 6.3 对象图
+
+| 对象 | 类 | format | 关键字段/说明 |
+|------|-----|--------|----------------|
+| `ClassObject` | 自身 | 1 | `Class_format = 144`（instSize 7, format 1） |
+| `ClassInteger` | `ClassObject` | 1 | `Class_format = 130` |
+| `ClassArray` | `ClassObject` | 1 | `Class_format = 258`（instSize 0, format 2） |
+| `ClassFloat` | `ClassObject` | 1 | `Class_format = 770` |
+| `ClassMethodContext` | `ClassObject` | 1 | **`Class_format = 398`（instSize 6, format 3）** |
+| `ClassCompiledMethod` | `ClassObject` | 1 | `Class_format = 1538`（instSize 0, format 12） |
+| `ClassProcess` | `ClassObject` | 1 | `Class_format = 140`（instSize 5, format 1） |
+| `ClassSymbol` | `ClassObject` | 1 | `Class_format = 1026` |
+| `nil` / `false` / `true` | `ClassObject` | 0 | 无字段 |
+| `symCannotInterpret` / `symCannotReturn` / `symDoesNotUnderstand` / `symMustBeBoolean` | `ClassSymbol` | 8\|padding | 字节对象 |
+| `specialSelectors` | `ClassArray` | 2 | 0 元素；slot 23 必须是有效对象 |
+| `compactClasses` | `ClassArray` | 2 | 31 个指针槽；前 8 项真实类，其余 nil；**不是 format 6** |
+| `methodTop` / `methodHalt` | `ClassCompiledMethod` | 12\|padding | `methodHalt = [126]` |
+| `contextTop` / `contextHalt` | `ClassMethodContext` | 3 | 23 个指针字（6 固定 + 17 小帧） |
+| `process` | `ClassProcess` | 1 | 5 个指针字；`Proc_suspendedContext = contextTop` |
+| `scheduler` / `schedulerAssociation` | `ClassObject` | 1 | 7 个指针字；`activeProcess` / `Assn_value` |
+| `specialObjectsArray` | `ClassArray` | 2 | 64 个指针槽 |
+
+`compactClasses` 必须是 `ClassArray / format 2`：reader 的 `makeCCArray` 在 install
+前读 `bits`（原始 int[]），format 6 也能“碰巧”通过；但 install 后 format 6 的
+`pointers == null`，writer 的 `ImageHeaderPlanner.compactClassIndexes` 会得到空表，
+short header 路径永远不会被覆盖。真实 Squeak 2.2 映像也是 `Array / format 2`。
+
+### 6.4 上下文与停机
+
+```text
+contextTop:  sender=contextHalt, ip=(numLits+1)*4+1, sp=0, method=methodTop, receiver=nil
+contextHalt: sender=nil,         ip=5,                sp=0, method=methodHalt, receiver=nil
+```
+
+- `decodeSqueakPC` 把 `(numLits+1)*4+1` 还原成 `pc=-1`；
+- `decodeSqueakSP` 把 `sp=0` 还原成 `sp=5`；
+- `ClassMethodContext` 必须 instSize 6/format 3；若写成 14，`instantiateClass(..., 17)`
+  会生成 31 指针 context，绕过 `recycleIfPossible` 的 23 指针小帧路径；
+- `methodHalt` 的字节码是 `[126]`，对应 `nonoBytecode` 的
+  `RuntimeException("Bad bytecode")`；测试把它当作确定的停机陷门；
+- `writerRoundTripKeepsResult` **必须在 `vm.run()` 前 save**：运行到陷门后
+  `activeContext` 是 `contextHalt`，重载会从 `pc=0` 继续并越界。
+
+### 6.5 BENCH 与负向用例
+
+- BENCH 字节码：`[118,118,176,135] × N + [124]`；`135` 是栈平衡必需的；
+- 执行步数（含返回与陷门）为 `4N + 2`；测试用包装 `bytecodeTable` 计数，
+  不做耗时/吞吐断言；
+- 负向用例必须区分：
+  - slot 28 = dangling oop（raw 0）→ `compact classes array not found`；
+  - slot 28 = nil 对象 → `compact classes array is malformed`；
+  - slot 9 = dangling oop → `Float class not found`；
+  - slot 9 = nil 对象 → **不抛异常**（nil 是合法对象）。
+
+### 6.6 覆盖边界
+
+合成夹具覆盖：映像 header 解析、对象安装、初始上下文、字节码分派、`primAdd`、
+一次方法字典/缓存/上下文切换/返回、writer 往返、负向 header/compact/Float 路径。
+它**不覆盖** UI、MVC、真实 Form、Smalltalk 库、原语全表；这些仍由用户提供的
+真实映像测试负责。生成器的格式知识来自 DodoTalk reader 的实读，因此它是
+“DodoTalk reader 的回归夹具”，不是与原生 2.2 逐字节一致的证明；SqueakJS/原生
+交叉验证仍列为后续工作。
