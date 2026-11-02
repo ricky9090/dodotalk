@@ -153,10 +153,15 @@
 - 详见 [ISSUE-0007](../issues/ISSUE-0007-launcher-runtime-options.md) /
   [DESIGN-0007](../design/DESIGN-0007-launcher-runtime-options.md)。
 
-### P1-5：原语测试网
+### P1-5：原语测试网（下一迭代最高优）
 
-- 每个已实现原语至少一个正常路径 + 一个失败路径。
-- `doPrimitive` default 行为、失败分类本身要有回归。
+- 已立项 [ISSUE-0012](../issues/ISSUE-0012-primitive-regression-suite.md)（draft，
+  等待 review）；设计 `DESIGN-0012` 在接受后创建。
+- 以 ISSUE-0011 的合成夹具为基座，建立直接 `doPrimitive` 与带 primitive header
+  的字节码双路径测试。
+- 每个已实现原语至少一个正常路径 + 一个失败路径；首批按真实映像
+  `-PsqueakStats=true` 的调用/失败直方图选择 ≥20 个分支。
+- `doPrimitive` default 行为、失败分类、栈效果和 `NO_OP_STUB_PRIMITIVES` 要有回归。
 - 新增原语不只靠人工冒烟发现。
 
 ### P1-10（已完成）：合成映像夹具与执行刻度
@@ -173,7 +178,8 @@
   JDK 25 本地得到表 ≈170–180M/s、switch ≈210–220M/s，方向相反，且硬件/系统/
   运行方式也不同。不能用单次数据排定分派优先级；benchmark 设计需另案完善
   （固定环境、预热、多轮、中位数、区分手动循环与 `SqueakVM.run()`）。
-- 长期方向（"自造映像"路线）拆为 ISSUE-0012 / 0013 / 0014，尚未创建；
+- 长期方向（"自造映像"路线）原计划占用 ISSUE-0012–0014；由于 ISSUE-0012 已用于
+  原语回归网，该路线实际编号待决策后重新分配，目前尚未创建。
   详见 ISSUE-0011 §1.5 与 §9.3。**该路线尚未决策**，需单独的 ADR。
 
 ### P1-6：剩余低优先级原语

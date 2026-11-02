@@ -54,6 +54,7 @@
 | [ISSUE-0009](issues/ISSUE-0009-class-header-format-type-bit.md) | 2-word class header 补充格式字类型位 | done | [DESIGN-0009](design/DESIGN-0009-class-header-format-type-bit.md) |
 | [ISSUE-0010](issues/ISSUE-0010-input-throttle-test-stability.md) | 输入限速回归测试在负载下稳定化 | done | [DESIGN-0010](design/DESIGN-0010-input-throttle-test-stability.md) |
 | [ISSUE-0011](issues/ISSUE-0011-synthetic-test-image-fixture.md) | 合成最小可运行 Squeak 2.2 映像夹具（映像格式的可执行规格） | done | [DESIGN-0011](design/DESIGN-0011-synthetic-test-image-fixture.md) |
+| [ISSUE-0012](issues/ISSUE-0012-primitive-regression-suite.md) | 原语回归网（基于合成映像的 primitive 测试） | draft | DESIGN-0012（待创建） |
 
 当前 ADR：[ADR-0003](adr/ADR-0003-mouse-polling-throttle.md) 将 MVC 空闲鼠标
 轮询限制在 250Hz（关联 ISSUE-0004 / DESIGN-0004）；[ADR-0005](adr/ADR-0005-input-poll-throttle-keyboard.md)
