@@ -5,7 +5,7 @@
 | 状态 | current（raw + gzip + mixed headers） |
 | 适用代码 | `SqueakImage`、`Starter`、Primitive 97/121/142 |
 | 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
-| 最后核对 | 2026-11-02 |
+| 最后核对 | 2026-11-04 |
 | 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) / [ADR-0008](../../adr/ADR-0008-image-writer-compact-headers.md) / [ADR-0009](../../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md) |
 | 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md)；[ISSUE-0009](../../issues/ISSUE-0009-class-header-format-type-bit.md) / [DESIGN-0009](../../design/DESIGN-0009-class-header-format-type-bit.md)；[ISSUE-0011](../../issues/ISSUE-0011-synthetic-test-image-fixture.md) / [DESIGN-0011](../../design/DESIGN-0011-synthetic-test-image-fixture.md) |
 
@@ -230,6 +230,12 @@ SqueakJS 可能比原版 VM 更宽容，因此验证通过是互操作必要条�
 `SyntheticImageBuilder` 在每次测试运行时现场生成一个最小 Squeak 2.2 映像，
 不提交任何二进制文件。它**不复用** `SqueakImage.writeImage`，只复用生产 reader
 与解释器；生成器主要用于解释器骨架回归，不是完整 UI/库覆盖。
+
+> 内部对象布局、两趟序列化、变体、魔法数字与扩展方法见
+> [合成测试映像构造流程](synthetic-image-builder.md)。对象 header、format 0–15、
+> 指针/字/字节与 Compact Class 的系统说明见
+> [Squeak 2.2 对象格式](squeak-object-format.md)。本文只保留映像格式层面的
+> 关键约定。
 
 ### 6.1 映像 header
 

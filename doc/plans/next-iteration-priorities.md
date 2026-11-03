@@ -153,15 +153,20 @@
 - 详见 [ISSUE-0007](../issues/ISSUE-0007-launcher-runtime-options.md) /
   [DESIGN-0007](../design/DESIGN-0007-launcher-runtime-options.md)。
 
-### P1-5：原语测试网（下一迭代最高优）
+### P1-5（下一迭代最高优）：原语测试网
 
-- 已立项 [ISSUE-0012](../issues/ISSUE-0012-primitive-regression-suite.md)（draft，
-  等待 review）；设计 `DESIGN-0012` 在接受后创建。
-- 以 ISSUE-0011 的合成夹具为基座，建立直接 `doPrimitive` 与带 primitive header
-  的字节码双路径测试。
-- 每个已实现原语至少一个正常路径 + 一个失败路径；首批按真实映像
-  `-PsqueakStats=true` 的调用/失败直方图选择 ≥20 个分支。
-- `doPrimitive` default 行为、失败分类、栈效果和 `NO_OP_STUB_PRIMITIVES` 要有回归。
+- 已立项 [ISSUE-0012](../issues/ISSUE-0012-primitive-regression-suite.md)
+  （discussing），设计
+  [DESIGN-0012](../design/DESIGN-0012-primitive-regression-suite.md) 已提交 review。
+- 以 ISSUE-0011 的合成夹具为基座，先补齐 `specialSelectors`（64 项，binary
+  参数个数为 1）与 primitive header 支持，再建立直接 `doPrimitive`、primitive
+  header 和 special-bytecode 回退的分层测试。
+- 每个受测原语按契约类别（`ALWAYS_SUCCESS` / `CAN_FAIL` / `ALWAYS_FAIL` /
+  `NO_OP_SUCCESS`，`SIDE_EFFECT` 叠加）满足正常/失败要求；首批按“最近改动 +
+  已知缺陷史 + 栈副作用 + 频次补充”选 ≥20 个分支。
+- 失败分类同时断言 `getLastFailureKind()` 与注入的 `RuntimeStats`；
+  `doPrimitive` default、20–39 INTENTIONAL、172 no-op、异常逃逸要有回归。
+- 编译管线探针不在本任务内，归入 ISSUE-0011 §9.3 的独立路线项。
 - 新增原语不只靠人工冒烟发现。
 
 ### P1-10（已完成）：合成映像夹具与执行刻度

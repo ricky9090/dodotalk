@@ -1,6 +1,6 @@
 # DodoTalk 技术规范
 
-> 最后更新：2026-10-30
+> 最后更新：2026-11-04
 
 本目录保存**当前有效、相对稳定、可验证**的技术规范。它不记录迭代计划、
 需求讨论或历史验收过程；这些内容分别位于 [`../plans/`](../plans/README.md)、
@@ -23,6 +23,8 @@
 | 文档 | 内容 | 主要代码 |
 |------|------|----------|
 | [映像格式：raw 与 gzip](image/image-format.md) | 映像命名、raw/gzip 检测、保存/另存、vmPath、支持文件 | `SqueakImage`、`Starter` |
+| [Squeak 2.2 对象格式](image/squeak-object-format.md) | 对象 header、format 0–15、指针/字/字节、类格式、Compact Class、reader/writer 流程 | `SqueakImage`、`SqueakObject`、`ImageHeaderPlanner` |
+| [合成测试映像构造流程](image/synthetic-image-builder.md) | `SyntheticImageBuilder` 的对象布局、两趟序列化、变体、魔法数字与扩展方法 | `SyntheticImageBuilder`、`SyntheticImageFixtureTest` |
 
 ### Runtime
 
@@ -40,11 +42,12 @@
 
 ## 规范的性质
 
-- **Normative（规范性）**：字节码表、原语表、BitBlt 操作表、映像格式。代码行为
-  应与这些文档一致；不一致时先修正代码或记录 Issue/ADR，再更新文档。
-- **Informative（说明性）**：输入模型、显示模型、运行时诊断、术语词典。它们描述
-  当前实现和已知限制；如与代码冲突，以代码和对应 Issue/Design/ADR 为准，并尽快
-  同步本文档。
+- **Normative（规范性）**：字节码表、原语表、BitBlt 操作表、映像格式、Squeak 2.2
+  对象格式。代码行为应与这些文档一致；不一致时先修正代码或记录 Issue/ADR，
+  再更新文档。
+- **Informative（说明性）**：合成测试映像构造流程、输入模型、显示模型、运行时
+  诊断、术语词典。它们描述当前实现和已知限制；如与代码冲突，以代码和对应
+  Issue/Design/ADR 为准，并尽快同步本文档。
 - **Planned（计划性）**：尚未实现的能力不写入本目录，放入
   [`../plans/`](../plans/README.md) 或 `doc/issues/`。
 
