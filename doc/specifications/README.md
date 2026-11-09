@@ -1,6 +1,6 @@
 # DodoTalk 技术规范
 
-> 最后更新：2026-11-04
+> 最后更新：2026-11-09
 
 本目录保存**当前有效、相对稳定、可验证**的技术规范。它不记录迭代计划、
 需求讨论或历史验收过程；这些内容分别位于 [`../plans/`](../plans/README.md)、
@@ -16,6 +16,7 @@
 |------|------|----------|
 | [字节码表](vm/bytecode-table.md) | Squeak 2.2 的 256 个字节码映射 | `SqueakVM.bytecodeTable` |
 | [原语表](vm/primitive-table.md) | 250+ 原语编号、名称和实现状态 | `SqueakPrimitiveHandler` |
+| [原语测试矩阵](vm/primitive-test-matrix.md) | 原语实现分类、契约、首批覆盖与现有测试 | `SqueakPrimitiveHandler`、`PrimitiveRegressionTest` |
 | [BitBlt 操作表](vm/bitblt-operation-table.md) | combination rule 与像素操作 | `BitBlt` |
 
 ### Image

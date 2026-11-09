@@ -36,8 +36,9 @@
 
 | 入口 | 作用 |
 |------|------|
-| `build(Variant)` | 生成 `ARITH` / `SEND` / `BENCH` 映像；`BENCH` 使用默认重复次数 |
+| `build(Variant)` | 生成 `ARITH` / `SEND` / `BENCH` / `FALLBACK` 映像；`BENCH` 使用默认重复次数 |
 | `buildBench(int repetitions)` | 生成指定重复次数的 `BENCH` 映像 |
+| `buildPrimitiveFixture(int primIndex, int argCount, byte[] fallback)` | 生成带 primitive header 的 `methodPrim` 和 `methodTop` |
 | `writeToTempFile(Variant, Path)` | 写入 JUnit 临时目录，返回路径 |
 
 变体：
@@ -47,6 +48,7 @@
 | `ARITH` | 两个 SmallInt 相加，验证字节码分派 + `primAdd` |
 | `SEND` | 在 `ARITH` 基础上验证方法字典、方法缓存、上下文切换与返回 |
 | `BENCH` | 直线字节码序列，验证确定性执行步数与栈平衡；**不作为性能门槛** |
+| `FALLBACK` | `primAdd` 失败后经 `specialSelectors[0]` 回退到 `+` 方法 |
 
 ## 3. 总体流程
 
@@ -212,12 +214,17 @@ Class_format = ((instSize + 1) << 1) | (format << 7)
 | `ClassCompiledMethod` | `ClassObject` | 1 | `Class_format = 1538` |
 | `ClassProcess` | `ClassObject` | 1 | `Class_format = 140` |
 | `ClassSymbol` | `ClassObject` | 1 | `Class_format = 1026` |
+| `ClassString` | `ClassObject` | 1 | `Class_format = 1026`（instSize 0, format 8） |
+| `ClassByteArray` | `ClassObject` | 1 | `Class_format = 1026`（instSize 0, format 8） |
+| `ClassCharacter` | `ClassObject` | 1 | `Class_format = 132`（instSize 1, format 1） |
+| `ClassLargePositiveInteger` | `ClassObject` | 1 | `Class_format = 1026`（instSize 0, format 8） |
 | `nil` / `false` / `true` | `ClassObject` | 0 | 无字段 |
 | `symCannotInterpret` | `ClassSymbol` | 8\|pad | 文本 `cannotInterpret` |
 | `symCannotReturn` | `ClassSymbol` | 8\|pad | 文本 `cannotReturn:` |
 | `symDoesNotUnderstand` | `ClassSymbol` | 8\|pad | 文本 `doesNotUnderstand:` |
 | `symMustBeBoolean` | `ClassSymbol` | 8\|pad | 文本 `mustBeBoolean` |
-| `specialSelectors` | `ClassArray` | 2 | **当前 0 元素**；见 §14 已知缺口 |
+| `symSpecial0..31` | `ClassSymbol` | 8\|pad | 32 个 special selector 文本 |
+| `specialSelectors` | `ClassArray` | 2 | **64 项 = 32 组 `{selector, nArgs}`** |
 | `compactClasses` | `ClassArray` | 2 | 31 槽；前 8 项真实类，其余 nil |
 
 ### 7.1 `compactClasses`
@@ -250,14 +257,18 @@ format 2 在 install 后仍有 `pointers`，writer 的 compact class 路径才�
 | 2 | `true` |
 | 3 | `schedulerAssociation` |
 | 5 | `ClassInteger` |
+| 6 | `ClassString` |
 | 7 | `ClassArray` |
 | 9 | `ClassFloat` |
 | 10 | `ClassMethodContext` |
+| 13 | `ClassLargePositiveInteger` |
 | 16 | `ClassCompiledMethod` |
+| 19 | `ClassCharacter` |
 | 20 | `symDoesNotUnderstand` |
 | 21 | `symCannotReturn` |
 | 23 | `specialSelectors` |
 | 25 | `symMustBeBoolean` |
+| 26 | `ClassByteArray` |
 | 27 | `ClassProcess` |
 | 28 | `compactClasses` |
 | 34 | `symCannotInterpret` |
@@ -274,8 +285,8 @@ format 2 在 install 后仍有 `pointers`，writer 的 compact class 路径才�
 >
 > 注意区分两个 64：
 > - `specialObjectsArray` 槽数：真实 2.2 = 41，夹具 = 64；
-> - `specialSelectors`（slot 23 指向的数组）：真实 2.2 = **64 项**，夹具当前为
->   0 项，ISSUE-0012 S0 计划补齐为 64 项。
+> - `specialSelectors`（slot 23 指向的数组）：真实 2.2 = **64 项**，夹具也已
+>   补齐为 64 项（32 组 `{selector, nArgs}`）。
 
 reader 还会硬性检查：
 
@@ -394,16 +405,23 @@ format 使用 `byteFormat(12, bytecodeCount)`，把 padding 写进低 2 位。
 > 这是夹具与真实 2.2 的已知保真度差异，不影响测试执行（解释器在 return 处
 > 停止）。见 §14。
 
-### 10.3 当前限制
+### 10.3 primitive header
 
-`compiledMethodWords(...)` 的 primitive index 当前**固定为 0**：
+普通变体的 `compiledMethodWords(...)` 仍把 primitive index 写为 0；带 primitive
+header 的方法由 `buildPrimitiveFixture(primIndex, argCount, fallback)` 生成：
 
-```java
-int rawHeader = (methodHeader(numLits, numArgs, tempCount, 0, false) << 1) | 1;
+```text
+methodPrim: 方法头 primIndex，numArgs = argCount，tempCount = argCount
+            字节码 = fallback
+methodTop:  字面量[0] = methodPrim，字节码 [126]
+contextTop: methodTop，storedIP = 9
 ```
 
-因此生成器目前不能生成带 primitive header 的方法。ISSUE-0012 / DESIGN-0012 的
-S1 需要增加 `primIndex` 重载或新的构建入口。
+测试通过 `SqueakVM.executeNewMethod` 直接驱动 `methodPrim`：成功时原语直接返回；
+失败时执行 fallback 并返回，最后回到 `methodTop` 的 126 停机陷门。
+
+> `tempCount` 必须至少等于 `argumentCount`；否则 `executeNewMethod` 的
+> `Arrays.fill` 区间会反向并抛 `IllegalArgumentException`。
 
 ## 11. 变体
 
@@ -486,7 +504,45 @@ pop   -> sp -1
 `sp` 全程在 5/6/7 之间摆动，与 N 无关。执行步数（含 124 返回与 126 陷门）为
 `4N + 2`。BENCH 只断言确定性步数与栈平衡，不设耗时/吞吐阈值。
 
-### 11.4 `methodHalt`
+### 11.4 FALLBACK
+
+```text
+methodTop:
+  字面量：0 = nil，1 = fallbackReceiver
+  字节码：33 (pushLiteralOne -> fallbackReceiver)
+          118 (pushConstantOne)
+          176 (bytecodePrimAdd)
+          124 (returnTopFromMethod)
+  numLits = 2, numArgs = 0, tempCount = 0
+  storedIP = 13
+
+fallbackReceiver: ClassFallback 实例，7 个 nil 指针
+ClassFallback.methodDict:
+  [0] nil
+  [1] methodArray
+  [2] symSpecial0        // 即 "+"
+methodPlus:
+  字节码 [32, 124]       // pushLiteralZero -> 42, return
+  numLits = 1, numArgs = 1, tempCount = 1
+```
+
+执行：
+
+```text
+push fallbackReceiver
+push 1
+primAdd 失败（receiver 不是 SmallInt）
+  -> sendSpecial(0)
+  -> specialSelectors[0] = "+"
+  -> 查找 ClassFallback 的 methodDict
+  -> 执行 methodPlus，返回 42
+methodTop 124 返回 42
+contextHalt 126 停机
+```
+
+该变体验证 `specialSelectors` 与 `sendSpecial` 的真实回退路径。
+
+### 11.5 `methodHalt`
 
 ```text
 字节码：[126]
@@ -514,7 +570,7 @@ vm.run()
 
 - `vm.pc == 0`；
 - `vm.methodBytes[0] == 126`；
-- `vm.top()` 是期望结果；
+- `vm.top()` 是期望结果（ARITH/SEND 为 2，FALLBACK 为 42）；
 - `vm.sp == 6`（ARITH/SEND）或 `sp == 6` + `top == nilObj`（BENCH）。
 
 ## 13. 确定性
@@ -532,12 +588,10 @@ vm.run()
 
 | 缺口 | 影响 | 计划 |
 |------|------|------|
-| `specialSelectors` 为 0 元素 | `sendSpecial` 与 `doPrimitive(60/61)` 读取 `[32]/[34]` 时抛 AIOOBE | ISSUE-0012 S0 补齐 64 项，按真实 2.2 的 `nArgs` |
-| primitive index 硬编码 0 | 无法测试 `executeNewMethod → tryPrimitive` | ISSUE-0012 S1 增加 primitive header 支持 |
 | CompiledMethod 不含 4 字节 trailer | 与真实 2.2 的字节区布局不一致；`bits` 直接是字节码 + padding | 不影响测试执行；需要格式保真时再补 trailer |
 | `specialObjectsArray` 使用 64 槽 | 真实 2.2 为 41 槽；多出的槽填 nil | reader 按固定索引取用，当前无害；可选对齐 41 |
 | 没有 `ClassMessage`（slot 15） | `doesNotUnderstand:` 路径不可用 | 首批不做；后续需要时补 |
-| 没有 `ClassString`（slot 6）/`ClassByteArray`（slot 26）/`ClassCharacter`（slot 19）/`CharacterTable`（slot 24） | 字符串/字符/字节数组原语测试需要额外对象 | PrimitiveTestSupport 按需补类或专用变体 |
+| 没有 `CharacterTable`（slot 24） | String 流的 `next` 需要 `charFromInt`；当前用 Array 流测试 | 需要时补 256 项 Character 表 |
 | 没有 `TheDisplay`（slot 14） | 显示原语只能测 headless 失败路径 | 保持 headless，不接真实窗口 |
 | 没有 `ClassBitmap`（slot 4）、`ClassPoint`（slot 12）等 | 相关原语需要额外对象图 | 按首批测试需要补 |
 | 生成态不使用 compact class index | reader 的 compact 路径只由 writer 往返覆盖 | 不强制；需要时另加 compact-header 用例 |
@@ -581,9 +635,16 @@ b.add("methodFoo", "ClassCompiledMethod",
 - `numLits` 与 `storedIP` 一致；
 - 字面量个数与实际传入的 literals 数一致；
 - 方法体字节码栈平衡；
-- 需要返回时以 124 结束。
+- 需要返回时以 124 结束；
+- 有参数的方法 `tempCount >= numArgs`（否则 `executeNewMethod` 的 `Arrays.fill`
+  区间会反向）。
+
+带 primitive header 的方法使用 `compiledMethodWordsWithPrimitive(...)`，或直接
+`buildPrimitiveFixture(primIndex, argCount, fallback)`。
 
 ### 15.4 增加变体
+
+已有 `FALLBACK` 作为 special-bytecode 回退示例。新增变体时：
 
 1. 在 `Variant` 中加枚举值；
 2. 在 `buildImage` 的 `switch` 中声明对象；

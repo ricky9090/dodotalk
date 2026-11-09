@@ -3,13 +3,13 @@
 | 字段 | 值 |
 |------|----|
 | ID | ISSUE-0012 |
-| 状态 | discussing |
+| 状态 | done |
 | 创建 | 2026-11-03 |
-| 更新 | 2026-11-04（吸收评审方向；修正 `specialSelectors` 参数、`RuntimeStats` 与 no-op 分类） |
+| 更新 | 2026-11-09（实现完成；31 个用例，280 测试全绿） |
 | 负责人 | Ricky9090 |
 | 关联设计 | [DESIGN-0012](../design/DESIGN-0012-primitive-regression-suite.md) |
 | 关联 ADR | [ADR-0009](../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md)（合成夹具基础） |
-| 关联提交 | 未开始 |
+| 关联提交 | 本次迭代 |
 
 ## 1. 背景与问题
 
@@ -211,16 +211,16 @@ ISSUE-0011 §9.3 已把“编译管线诊断”列为独立路线项；本 Issue
 
 ## 3. 验收标准
 
-- [ ] **夹具前置 A**：`SyntheticImageBuilder` 的 `specialSelectors` 补齐为
+- [x] **夹具前置 A**：`SyntheticImageBuilder` 的 `specialSelectors` 补齐为
       64 项 = 32 组 `{selector, nArgs}`，`nArgs` 与真实 2.2 一致（binary=1，
       `at:put:`=2，0 参选择子=0）。新增用例断言：
       - `SqueakVM.specialSelectors.length == 64`；
       - `doPrimitive(60, 1)` 在合成夹具上不再抛 `ArrayIndexOutOfBoundsException`；
       - 一次 special-bytecode 失败回退能到达 Smalltalk 回退方法，而不是 AIOOBE。
-- [ ] **夹具前置 B**：`SyntheticImageBuilder` 支持 primitive header；新增用例断言：
+- [x] **夹具前置 B**：`SyntheticImageBuilder` 支持 primitive header；新增用例断言：
       - primitive header 成功时直接返回；
       - primitive header 失败时继续执行方法体 fallback。
-- [ ] 新增测试侧原语夹具（名称待设计确定，例如 `PrimitiveTestSupport`），
+- [x] 新增测试侧原语夹具（名称待设计确定，例如 `PrimitiveTestSupport`），
       至少支持：
       - 任意 receiver + 0–N 个参数的 context 栈装配；
       - SmallInt、Array、ByteArray/String、Character、Float、Stream 等基础对象；
@@ -229,12 +229,12 @@ ISSUE-0011 §9.3 已把“编译管线诊断”列为独立路线项；本 Issue
       - special-bytecode 失败回退路径；
       - 断言 `success`、返回值/类型、`sp` 前后、失败分类
         （`getLastFailureKind()`）和 `RuntimeStats` 计数。
-- [ ] 完成 `SqueakPrimitiveHandler` 的 case inventory，按
+- [x] 完成 `SqueakPrimitiveHandler` 的 case inventory，按
       **implemented / intentional-fail / unimplemented / no-op-success** 四类归档，
       并为每个原语标注契约类别与“headless 可测 / 需真实环境”；结果写入
       `doc/specifications/vm/` 下的测试矩阵文档（或原语表的扩展章节），
       并标注**现有测试**，避免重复覆盖。
-- [ ] 第一批至少覆盖 **20 个实际分支**，名单与测试矩阵见 DESIGN-0012；
+- [x] 第一批至少覆盖 **20 个实际分支**，名单与测试矩阵见 DESIGN-0012；
       必须包含：
       - 65–67、103、127、140、231、235；
       - 96、103 的已知缺陷路径；
@@ -242,23 +242,23 @@ ISSUE-0011 §9.3 已把“编译管线诊断”列为独立路线项；本 Issue
       - 至少一个 `SIDE_EFFECT` 原语的 headless 或“需真实环境”标注；
       - 至少一个 primitive-header 字节码路径；
       - 至少一个 special-bytecode 失败回退。
-- [ ] **每个受测原语的测试数量按其契约类别确定**：
+- [x] **每个受测原语的测试数量按其契约类别确定**：
       `CAN_FAIL` 必须有正常 + 失败两条；`ALWAYS_FAIL` 只要求把失败分类钉死；
       `ALWAYS_SUCCESS` / `NO_OP_SUCCESS` 各一条成功路径即可；`SIDE_EFFECT`
       按可测性补充。
-- [ ] `doPrimitive` 的 `default` 分支（未知 index）、20–39 的 `INTENTIONAL`、
+- [x] `doPrimitive` 的 `default` 分支（未知 index）、20–39 的 `INTENTIONAL`、
       172 的 no-op 语义（`isNoOpStub`）均有回归。
-- [ ] 每个用例断言栈平衡（除原语明确改变栈的语义外，`sp` 前后关系符合预期），
+- [x] 每个用例断言栈平衡（除原语明确改变栈的语义外，`sp` 前后关系符合预期），
       不允许静默栈漂移。
-- [ ] 原语夹具用例在**无外部映像**时执行；跳过数不增加。
-- [ ] `./gradlew clean test` 全绿；无映像时**实际执行数** ≥ 172 + 新增用例数。
-- [ ] `./gradlew checkNoSqueakImages` 通过；生成物不提交。
-- [ ] `python3 doc/tools/check-links.py` 通过。
+- [x] 原语夹具用例在**无外部映像**时执行；跳过数不增加。
+- [x] `./gradlew clean test` 全绿；无映像时**实际执行数** ≥ 172 + 新增用例数。
+- [x] `./gradlew checkNoSqueakImages` 通过；生成物不提交。
+- [x] `python3 doc/tools/check-links.py` 通过。
 - [x] **构造流程文档**：已补充
       [合成测试映像构造流程](../specifications/image/synthetic-image-builder.md)，
       说明对象排布、两趟序列化、变体、魔法数字、扩展方法与已知缺口；
       `SyntheticImageBuilder` 与测试代码本身不新增注释。
-- [ ] 若测试发现产品缺陷，记录到本 Issue 的“实施记录”或在 review 后拆分独立
+- [x] 若测试发现产品缺陷，记录到本 Issue 的“实施记录”或在 review 后拆分独立
       Issue；不得把未验证的语义修改混入测试网。
 
 ## 4. 约束、风险与边界
@@ -441,6 +441,7 @@ fake/临时目录，或只测参数校验/失败路径，并在清单中标注�
 - [DESIGN-0012：原语回归网设计](../design/DESIGN-0012-primitive-regression-suite.md)
 - [ADR-0009：优先自建合成映像夹具，而非下载真实映像](../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md)
 - [原语表](../specifications/vm/primitive-table.md)
+- [原语测试矩阵](../specifications/vm/primitive-test-matrix.md)
 - [运行时诊断规范](../specifications/runtime/diagnostics.md)
 - [合成测试映像构造流程](../specifications/image/synthetic-image-builder.md)
 - [Squeak 2.2 对象格式](../specifications/image/squeak-object-format.md)
@@ -511,3 +512,36 @@ fake/临时目录，或只测参数校验/失败路径，并在清单中标注�
 说明 `SyntheticImageBuilder` 的对象排布、两趟序列化、header/oop、上下文、
 CompiledMethod、变体、魔法数字、扩展方法与已知缺口。`SyntheticImageBuilder`
 与测试代码本身未新增注释。
+
+### 9.4 实施记录（2026-11-09）
+
+已实现：
+
+- `SyntheticImageBuilder`
+  - `specialSelectors` 64 项，使用真实 2.2 的 `nArgs`
+  - `FALLBACK` 变体
+  - `buildPrimitiveFixture(int, int, byte[])`
+  - `ClassString` / `ClassByteArray` / `ClassCharacter` /
+    `ClassLargePositiveInteger`
+- `PrimitiveTestSupport`
+  - 直接 `doPrimitive`、primitive header、special-bytecode 回退
+  - 栈、失败分类、`RuntimeStats` 增量断言
+- `PrimitiveRegressionTest`
+  - 31 个用例；22 个核心分支 + 分类代表 + 两条集成路径
+- [原语测试矩阵](../specifications/vm/primitive-test-matrix.md)
+
+验证：
+
+```text
+有 mini / squeak22：tests 280, skipped 0, executed 280, failures 0
+无外部映像：tests 280, skipped 77, executed 203, failures 0
+```
+
+发现并记录：
+
+- 70 `Class.new` 的非法 receiver 当前抛 AIOOBE 并分类为 EXCEPTION；作为
+  EXCEPTION 代表记录，参数校验修复另行评估。
+- 96 `copyBits` 的非法 receiver 会在 `BitBlt.loadBitBlt` 中访问指针；合成测试
+  使用 10 槽对象触发干净的 FAILED 路径。
+- `primitiveSize` 的失败路径仍调用 `pos32BitIntFor`；夹具加入
+  `ClassLargePositiveInteger` 后 FAILED 路径可正常返回。

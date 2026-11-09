@@ -25,6 +25,6 @@ Issue 文档记录“为什么做、做什么、验收标准是什么”。每�
 | [ISSUE-0009](ISSUE-0009-class-header-format-type-bit.md) | 2-word class header 补充格式字类型位 | done | [DESIGN-0009](../design/DESIGN-0009-class-header-format-type-bit.md) |
 | [ISSUE-0010](ISSUE-0010-input-throttle-test-stability.md) | 输入限速回归测试在负载下稳定化 | done | [DESIGN-0010](../design/DESIGN-0010-input-throttle-test-stability.md) |
 | [ISSUE-0011](ISSUE-0011-synthetic-test-image-fixture.md) | 合成最小可运行 Squeak 2.2 映像夹具（映像格式的可执行规格） | done | [DESIGN-0011](../design/DESIGN-0011-synthetic-test-image-fixture.md) |
-| [ISSUE-0012](ISSUE-0012-primitive-regression-suite.md) | 原语回归网（基于合成映像的 primitive 测试） | discussing | [DESIGN-0012](../design/DESIGN-0012-primitive-regression-suite.md) |
+| [ISSUE-0012](ISSUE-0012-primitive-regression-suite.md) | 原语回归网（基于合成映像的 primitive 测试） | done | [DESIGN-0012](../design/DESIGN-0012-primitive-regression-suite.md) |
 
 Issue 接受（`accepted`）后再进入实现；Design 可在 `discussing` / `accepted` 阶段起草并 review。

@@ -5,9 +5,11 @@
 | 状态 | current |
 | 来源 | Squeak 2.2 changes + `SqueakPrimitiveHandler.doPrimitiveInternal` |
 | 适用 | 原语编号 0–255、256–519、520+ |
-| 最后核对 | 2026-10-30 |
+| 最后核对 | 2026-11-09 |
 
 Comments from Squeak2.2.changes
+
+> 实现状态与首批测试覆盖见 [原语测试矩阵](primitive-test-matrix.md)。
 
 <pre>
 "Integer Primitives (0-19)"

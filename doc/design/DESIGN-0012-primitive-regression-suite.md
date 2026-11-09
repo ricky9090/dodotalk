@@ -3,13 +3,13 @@
 | 字段 | 值 |
 |------|----|
 | ID | DESIGN-0012 |
-| 状态 | review |
+| 状态 | implemented |
 | 创建 | 2026-11-04 |
-| 更新 | 2026-11-04 |
+| 更新 | 2026-11-09 |
 | 关联 Issue | [ISSUE-0012](../issues/ISSUE-0012-primitive-regression-suite.md) |
 | 关联 ADR | [ADR-0009](../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md) |
 | 作者/评审 | Ricky9090 |
-| 实施提交 | 未开始 |
+| 实施提交 | 本次迭代 |
 
 ## 1. 摘要
 
@@ -326,7 +326,7 @@ final class PrimitiveTestSupport {
 | 7 | 65 `primitiveNext` | CAN_FAIL | String/Array 流 | 到末尾 | 直接 | StreamPrimitiveTest |
 | 8 | 66 `primitiveNextPut` | CAN_FAIL | 写入字符 | 到 limit/错误类型 | 直接 | StreamPrimitiveTest |
 | 9 | 67 `primitiveAtEnd` | CAN_FAIL | false/true | 非法 stream | 直接 | StreamPrimitiveTest |
-| 10 | 70 `primitiveNew` | CAN_FAIL | receiver 为 ClassArray，`new` 成功 | receiver 为 SmallInt → `stackNonInteger` 失败 | 直接 | 无 |
+| 10 | 70 `primitiveNew` | CAN_FAIL | receiver 为 ClassArray，`new` 成功 | receiver 为 nil → EXCEPTION（已知缺陷） | 直接 | 无 |
 | 11 | 71 `primitiveNewWithArg` | CAN_FAIL | `ClassArray new: 3` | 负数/非整数 | 直接 | 无 |
 | 12 | 96 `primitiveCopyBits` | CAN_FAIL | 普通 Form 复制 | 压缩 Form 失败 | 直接 | CopyBitsTest（真实映像） |
 | 13 | 103 `primitiveScanCharacters` | CAN_FAIL | scanner 扫描 | 非法 scanner | 直接 | ScanCharactersTest（真实映像） |
@@ -518,6 +518,7 @@ headless 覆盖，在矩阵中标注“需真实环境”，不作为本 Issue �
 - [DESIGN-0011](DESIGN-0011-synthetic-test-image-fixture.md)
 - [ADR-0009](../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md)
 - [原语表](../specifications/vm/primitive-table.md)
+- [原语测试矩阵](../specifications/vm/primitive-test-matrix.md)
 - [运行时诊断规范](../specifications/runtime/diagnostics.md)
 - [合成测试映像构造流程](../specifications/image/synthetic-image-builder.md)
 - [Squeak 2.2 对象格式](../specifications/image/squeak-object-format.md)
@@ -533,3 +534,41 @@ headless 覆盖，在矩阵中标注“需真实环境”，不作为本 Issue �
 - `src/test/java/org/dodotalk/core/InterruptAndStatsTest.java`
 - `src/test/java/org/dodotalk/core/StreamPrimitiveTest.java`
 - `src/test/java/org/dodotalk/core/FilePrimitiveTest.java`
+
+## 11. 实施记录
+
+已实施（2026-11-09）。
+
+新增/修改：
+
+- `src/test/java/org/dodotalk/core/SyntheticImageBuilder.java`
+  - `specialSelectors` 64 项，按真实 2.2 的 `nArgs`
+  - `FALLBACK` 变体
+  - `buildPrimitiveFixture(int, int, byte[])`
+  - `ClassString` / `ClassByteArray` / `ClassCharacter` /
+    `ClassLargePositiveInteger`
+- `src/test/java/org/dodotalk/core/PrimitiveTestSupport.java`
+  - 直接 `doPrimitive`、primitive header、special-bytecode 回退
+  - `CallResult` 记录 `success`、结果、`sp`、失败分类、stats 增量
+- `src/test/java/org/dodotalk/core/PrimitiveRegressionTest.java`
+  - 31 个用例，覆盖 22 个核心分支 + 分类代表 + 集成路径
+- `doc/specifications/vm/primitive-test-matrix.md`
+  - 原语 inventory、契约、首批与现有测试
+
+验证：
+
+```text
+有 mini / squeak22：tests 280, skipped 0, executed 280, failures 0
+无外部映像：tests 280, skipped 77, executed 203, failures 0
+```
+
+无映像执行数 = 172（基线）+ 31（新增）。
+
+实施中发现并记录：
+
+- 70 `Class.new` 的非法 receiver 当前抛 AIOOBE 并分类为 EXCEPTION；测试将其
+  作为 EXCEPTION 代表，参数校验修复另行评估。
+- 96 `copyBits` 的非法 receiver 会在 `BitBlt.loadBitBlt` 中直接访问指针；
+  合成测试使用 10 槽对象走干净 FAILED 路径。
+- `primitiveSize` 在失败路径仍会调用 `pos32BitIntFor`；夹具加入
+  `ClassLargePositiveInteger` 后失败路径可正常返回 FAILED。

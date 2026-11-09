@@ -30,11 +30,26 @@ final class SyntheticImageBuilder {
     enum Variant {
         ARITH,
         SEND,
-        BENCH
+        BENCH,
+        FALLBACK
     }
 
     static final int DEFAULT_BENCH_REPETITIONS = 1_000;
     static final int MAX_BENCH_REPETITIONS = 2_000_000;
+
+    private static final String[] SPECIAL_SELECTOR_TEXT = {
+            "+", "-", "<", ">", "<=", ">=", "=", "~=",
+            "*", "/", "\\", "@", "bitShift:", "//", "bitAnd:", "bitOr:",
+            "at:", "at:put:", "size", "next", "nextPut:", "atEnd", "==", "class",
+            "blockCopy:", "value", "value:", "do:", "new", "new:", "x", "y"
+    };
+
+    private static final int[] SPECIAL_SELECTOR_ARGUMENTS = {
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 2, 0, 0, 1, 0, 1, 0,
+            1, 0, 1, 1, 0, 1, 0, 0
+    };
 
     private static final int IMAGE_VERSION = 6502;
     private static final int HEADER_SIZE = 64;
@@ -46,20 +61,27 @@ final class SyntheticImageBuilder {
     private static final int SPL_TRUE = 2;
     private static final int SPL_SCHEDULER_ASSOCIATION = 3;
     private static final int SPL_CLASS_INTEGER = 5;
+    private static final int SPL_CLASS_STRING = 6;
     private static final int SPL_CLASS_ARRAY = 7;
     private static final int SPL_CLASS_FLOAT = 9;
     private static final int SPL_CLASS_METHOD_CONTEXT = 10;
+    private static final int SPL_CLASS_LARGE_POSITIVE_INTEGER = 13;
     private static final int SPL_CLASS_COMPILED_METHOD = 16;
+    private static final int SPL_CLASS_CHARACTER = 19;
     private static final int SPL_SELECTOR_DOES_NOT_UNDERSTAND = 20;
     private static final int SPL_SELECTOR_CANNOT_RETURN = 21;
     private static final int SPL_SPECIAL_SELECTORS = 23;
     private static final int SPL_SELECTOR_MUST_BE_BOOLEAN = 25;
+    private static final int SPL_CLASS_BYTE_ARRAY = 26;
     private static final int SPL_CLASS_PROCESS = 27;
     private static final int SPL_COMPACT_CLASSES = 28;
     private static final int SPL_SELECTOR_CANNOT_INTERPRET = 34;
 
     private static final int PUSH_CONSTANT_ONE = 118;
     private static final int PUSH_CONSTANT_TWO = 119;
+    private static final int PUSH_LITERAL_ZERO = 32;
+    private static final int PUSH_LITERAL_ONE = 33;
+    private static final int SEND_LITERAL_SELECTOR_0 = 208;
     private static final int PRIM_ADD = 176;
     private static final int POP_STACK = 135;
     private static final int RETURN_TOP_FROM_METHOD = 124;
@@ -91,6 +113,30 @@ final class SyntheticImageBuilder {
         return file;
     }
 
+    static byte[] buildPrimitiveFixture(int primitiveIndex, int argumentCount,
+                                        byte[] fallbackBytecodes) {
+        if (primitiveIndex < 0 || primitiveIndex > 0x1FF) {
+            throw new IllegalArgumentException("primitive index out of range: " + primitiveIndex);
+        }
+        if (argumentCount < 0 || argumentCount > 15) {
+            throw new IllegalArgumentException("argument count out of range: " + argumentCount);
+        }
+        if (fallbackBytecodes == null || fallbackBytecodes.length == 0) {
+            throw new IllegalArgumentException("fallback bytecodes must not be empty");
+        }
+        Builder b = new Builder();
+        addBaseObjects(b);
+        b.add("methodPrim", "ClassCompiledMethod",
+                byteFormat(12, fallbackBytecodes.length),
+                compiledMethodWordsWithPrimitive(fallbackBytecodes, 0, argumentCount,
+                        argumentCount, primitiveIndex));
+        byte[] topBytes = {(byte) UNIMPLEMENTED_BYTECODE};
+        b.add("methodTop", "ClassCompiledMethod", byteFormat(12, topBytes.length),
+                compiledMethodWords(topBytes, 1, 0, 0, "methodPrim"));
+        finishImage(b, 1);
+        return b.build();
+    }
+
     private static byte[] buildImage(Variant variant, int repetitions) {
         Builder b = new Builder();
         addBaseObjects(b);
@@ -116,7 +162,10 @@ final class SyntheticImageBuilder {
                         "nil", "nil", "nil", "nil");
                 b.add("receiver", "ClassFoo", 1,
                         "nil", "nil", "nil", "nil", "nil", "nil", "nil");
-                byte[] topBytes = {33, (byte) 208, RETURN_TOP_FROM_METHOD};
+                byte[] topBytes = {
+                        (byte) PUSH_LITERAL_ONE, (byte) SEND_LITERAL_SELECTOR_0,
+                        RETURN_TOP_FROM_METHOD
+                };
                 topLiteralCount = 2;
                 b.add("methodTop", "ClassCompiledMethod", byteFormat(12, topBytes.length),
                         compiledMethodWords(topBytes, topLiteralCount, 0, 0, "symFoo", "receiver"));
@@ -134,8 +183,34 @@ final class SyntheticImageBuilder {
                 b.add("methodTop", "ClassCompiledMethod", byteFormat(12, topBytes.length),
                         compiledMethodWords(topBytes));
             }
+            case FALLBACK -> {
+                b.add("methodPlus", "ClassCompiledMethod", byteFormat(12, 2),
+                        compiledMethodWords(
+                                new byte[] {PUSH_LITERAL_ZERO, RETURN_TOP_FROM_METHOD},
+                                1, 1, 1, small(42)));
+                b.add("methodArray", "ClassArray", 2, "methodPlus");
+                b.add("methodDict", "ClassObject", 2, "nil", "methodArray", "symSpecial0");
+                b.add("ClassFallback", "ClassObject", 1,
+                        "nil", "methodDict", small(classFormat(7, 1)),
+                        "nil", "nil", "nil", "nil");
+                b.add("fallbackReceiver", "ClassFallback", 1,
+                        "nil", "nil", "nil", "nil", "nil", "nil", "nil");
+                byte[] topBytes = {
+                        (byte) PUSH_LITERAL_ONE, (byte) PUSH_CONSTANT_ONE,
+                        (byte) PRIM_ADD, RETURN_TOP_FROM_METHOD
+                };
+                topLiteralCount = 2;
+                b.add("methodTop", "ClassCompiledMethod", byteFormat(12, topBytes.length),
+                        compiledMethodWords(topBytes, topLiteralCount, 0, 0,
+                                "nil", "fallbackReceiver"));
+            }
         }
 
+        finishImage(b, topLiteralCount);
+        return b.build();
+    }
+
+    private static void finishImage(Builder b, int topLiteralCount) {
         byte[] haltBytes = {(byte) UNIMPLEMENTED_BYTECODE};
         b.add("methodHalt", "ClassCompiledMethod", byteFormat(12, haltBytes.length),
                 compiledMethodWords(haltBytes));
@@ -151,8 +226,6 @@ final class SyntheticImageBuilder {
         b.add("schedulerAssociation", "ClassObject", 1,
                 "nil", "scheduler", "nil", "nil", "nil", "nil", "nil");
         b.add("specialObjectsArray", "ClassArray", 2, specialObjectSlots());
-
-        return b.build();
     }
 
     private static void addBaseObjects(Builder b) {
@@ -165,6 +238,10 @@ final class SyntheticImageBuilder {
         classObject(b, "ClassCompiledMethod", 0, 12);
         classObject(b, "ClassProcess", 5, 1);
         classObject(b, "ClassSymbol", 0, 8);
+        classObject(b, "ClassString", 0, 8);
+        classObject(b, "ClassByteArray", 0, 8);
+        classObject(b, "ClassCharacter", 1, 1);
+        classObject(b, "ClassLargePositiveInteger", 0, 8);
 
         b.add("nil", "ClassObject", 0);
         b.add("false", "ClassObject", 0);
@@ -174,8 +251,11 @@ final class SyntheticImageBuilder {
         symbol(b, "symCannotReturn", "cannotReturn:", 0);
         symbol(b, "symDoesNotUnderstand", "doesNotUnderstand:", 0);
         symbol(b, "symMustBeBoolean", "mustBeBoolean", 0);
+        for (int i = 0; i < SPECIAL_SELECTOR_TEXT.length; i++) {
+            symbol(b, "symSpecial" + i, SPECIAL_SELECTOR_TEXT[i], 0);
+        }
 
-        b.add("specialSelectors", "ClassArray", 2);
+        b.add("specialSelectors", "ClassArray", 2, specialSelectorWords());
         List<Object> compact = new ArrayList<>(Collections.nCopies(31, "nil"));
         compact.set(0, "ClassInteger");
         compact.set(1, "ClassArray");
@@ -208,6 +288,15 @@ final class SyntheticImageBuilder {
         return result;
     }
 
+    private static Object[] specialSelectorWords() {
+        Object[] words = new Object[SPECIAL_SELECTOR_TEXT.length * 2];
+        for (int i = 0; i < SPECIAL_SELECTOR_TEXT.length; i++) {
+            words[i * 2] = "symSpecial" + i;
+            words[(i * 2) + 1] = small(SPECIAL_SELECTOR_ARGUMENTS[i]);
+        }
+        return words;
+    }
+
     private static Object[] contextWords(String sender, int instructionPointer,
                                          String method) {
         Object[] words = new Object[23];
@@ -229,14 +318,18 @@ final class SyntheticImageBuilder {
         slots[SPL_TRUE] = "true";
         slots[SPL_SCHEDULER_ASSOCIATION] = "schedulerAssociation";
         slots[SPL_CLASS_INTEGER] = "ClassInteger";
+        slots[SPL_CLASS_STRING] = "ClassString";
         slots[SPL_CLASS_ARRAY] = "ClassArray";
         slots[SPL_CLASS_FLOAT] = "ClassFloat";
         slots[SPL_CLASS_METHOD_CONTEXT] = "ClassMethodContext";
         slots[SPL_CLASS_COMPILED_METHOD] = "ClassCompiledMethod";
+        slots[SPL_CLASS_CHARACTER] = "ClassCharacter";
+        slots[SPL_CLASS_LARGE_POSITIVE_INTEGER] = "ClassLargePositiveInteger";
         slots[SPL_SELECTOR_DOES_NOT_UNDERSTAND] = "symDoesNotUnderstand";
         slots[SPL_SELECTOR_CANNOT_RETURN] = "symCannotReturn";
         slots[SPL_SPECIAL_SELECTORS] = "specialSelectors";
         slots[SPL_SELECTOR_MUST_BE_BOOLEAN] = "symMustBeBoolean";
+        slots[SPL_CLASS_BYTE_ARRAY] = "ClassByteArray";
         slots[SPL_CLASS_PROCESS] = "ClassProcess";
         slots[SPL_COMPACT_CLASSES] = "compactClasses";
         slots[SPL_SELECTOR_CANNOT_INTERPRET] = "symCannotInterpret";
@@ -286,7 +379,15 @@ final class SyntheticImageBuilder {
 
     private static Object[] compiledMethodWords(byte[] bytecodes, int numLits, int numArgs,
                                                 int tempCount, Object... literals) {
-        int rawHeader = (methodHeader(numLits, numArgs, tempCount, 0, false) << 1) | 1;
+        return compiledMethodWordsWithPrimitive(bytecodes, numLits, numArgs, tempCount,
+                0, literals);
+    }
+
+    private static Object[] compiledMethodWordsWithPrimitive(byte[] bytecodes, int numLits,
+                                                             int numArgs, int tempCount,
+                                                             int primIndex,
+                                                             Object... literals) {
+        int rawHeader = (methodHeader(numLits, numArgs, tempCount, primIndex, false) << 1) | 1;
         Object[] words = new Object[1 + literals.length + ((bytecodes.length + 3) / 4)];
         words[0] = rawHeader;
         System.arraycopy(literals, 0, words, 1, literals.length);

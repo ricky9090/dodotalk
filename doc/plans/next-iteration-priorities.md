@@ -1,8 +1,8 @@
 # DodoTalk 下一迭代高优方向
 
-> 日期：2026-10-31（raw/gzip 映像兼容与快照上下文修复完成后更新）
-> 依据：当前代码审查、`./gradlew clean test`（249 个测试；无 image 时 172 执行/77 跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
-> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer、输入限速回归测试稳定化已落地。
+> 日期：2026-11-09（原语回归网实现后更新）
+> 依据：当前代码审查、`./gradlew clean test`（280 个测试；无 image 时 203 执行/77 跳过，设置测试 image 后全部通过）、真实运行统计与近期提交。
+> 状态：Phase 1 / Phase 1.5 / Phase 1.6 已完成；Sprint 1（中断/诊断）、Sprint 2（显示刷新/流原语/GC 绑定）与 Sprint 3 的 Primitive 103、Primitive 96 诊断、tally 栈修复、MVC 空闲轮询限速、raw/gzip 映像兼容、混合 object header writer、输入限速回归测试稳定化、原语回归网已落地。
 > 文档流程：Issue → Design → ADR，见 [`doc/README.md`](../README.md) 与 [`ADR-0001`](../adr/ADR-0001-documentation-workflow.md)。
 > 相关记录见 [输入模型](../specifications/runtime/input-model.md)、[运行时诊断](../specifications/runtime/diagnostics.md)、[显示模型](../specifications/runtime/display-model.md) 与 [冻结分析](../archives/freeze-analysis-2026-10-24.md)。
 
@@ -11,19 +11,20 @@
 | 维度 | 当前状态 |
 |------|----------|
 | 构建 | JDK 25 + Gradle 9.8.2 Wrapper，`./gradlew clean test` 可用 |
-| 测试 | 249 个 JUnit 5 测试；无 image 时 172 执行/77 跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现，以及合成映像的解释器骨架回归（ISSUE-0011，17 个用例） |
+| 测试 | 280 个 JUnit 5 测试；无 image 时 203 执行/77 跳过，提供 `JSQUEAK_TEST_*` image 后全部通过；覆盖映像 raw/gzip、混合 object header、对象表枚举、上下文保存、显示缓冲、脏矩形、输入、中断、诊断、流原语、数值/文件原语、复制原语失败路径、tally 栈效果、鼠标/键盘轮询限速、启动参数与支持文件警告、测试映像发现、合成映像解释器骨架回归（ISSUE-0011，17 个用例）以及原语回归网（ISSUE-0012，31 个用例） |
 | 映像 | 仓库不内置 image；启动器/`-image` 选择用户提供的 `*.image.gz` 或 raw `*.image`；Primitive 97 可保存并重新加载；writer 输出 short/class/size-and-class 混合 header，保存体积与原版一致 |
 | 执行 | 256 个字节码已映射；方法缓存、上下文切换、中断/定时器框架存在 |
-| 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002） |
+| 原语 | 实际有分支的原语约 135 个；65–67、235、140、127、231、103 已实现；96 的少量失败已确认为压缩 Form 回退（ISSUE-0002）；原语分类与首批测试见 [原语测试矩阵](../specifications/vm/primitive-test-matrix.md) |
 | 显示 | 1/2/4/8/16/32 bpp；脏矩形合并/裁剪；defer/force 生效；233 明确失败 |
 | 输入 | 单调事件闩锁 + 鼠标 transition 队列 + 键盘唤醒；`Alt+.`（cmd-.）可中断；MVC 空闲鼠标/键盘轮询限制在 250Hz（ISSUE-0004 / ISSUE-0006） |
 | 诊断 | 原语调用/失败直方图与分类、定时器延迟、输入队列深度、绘制耗时；stdout + `logs/runtime-stats.log` |
 | 文件 | 150–160、162 已接线；`imageName`/`vmPath`/路径分隔符已修正 |
 | 工程化 | 无 CI（重要但低优先级）；无 GUI 自动化冒烟、无覆盖率门禁；合成夹具已提供确定性执行刻度（ISSUE-0011），但跨 JDK/硬件基准尚未稳定，benchmark 设计另案完善 |
 
-结论：显示刷新、显示 defer/force、流原语、GC 绑定、Primitive 103 和 96 诊断已经补上。
-96 的剩余失败已确认是压缩 Form 的预期 `unhibernate` 回退，不再作为未知缺陷跟踪。
-当前主要矛盾是 **全屏/缩放/光标策略、映像可移植性、以及原语回归网**。
+结论：显示刷新、显示 defer/force、流原语、GC 绑定、Primitive 103 和 96 诊断、
+原语回归网已经补上。96 的剩余失败已确认是压缩 Form 的预期 `unhibernate` 回退，
+不再作为未知缺陷跟踪。当前主要矛盾是 **全屏/缩放/光标策略、映像可移植性与
+原语可测性/可移植性**。
 
 ## 2. Sprint 1 + Sprint 2 已完成（不再排期）
 
@@ -153,19 +154,18 @@
 - 详见 [ISSUE-0007](../issues/ISSUE-0007-launcher-runtime-options.md) /
   [DESIGN-0007](../design/DESIGN-0007-launcher-runtime-options.md)。
 
-### P1-5（下一迭代最高优）：原语测试网
+### P1-5（已完成）：原语测试网
 
-- 已立项 [ISSUE-0012](../issues/ISSUE-0012-primitive-regression-suite.md)
-  （discussing），设计
-  [DESIGN-0012](../design/DESIGN-0012-primitive-regression-suite.md) 已提交 review。
-- 以 ISSUE-0011 的合成夹具为基座，先补齐 `specialSelectors`（64 项，binary
-  参数个数为 1）与 primitive header 支持，再建立直接 `doPrimitive`、primitive
-  header 和 special-bytecode 回退的分层测试。
-- 每个受测原语按契约类别（`ALWAYS_SUCCESS` / `CAN_FAIL` / `ALWAYS_FAIL` /
-  `NO_OP_SUCCESS`，`SIDE_EFFECT` 叠加）满足正常/失败要求；首批按“最近改动 +
-  已知缺陷史 + 栈副作用 + 频次补充”选 ≥20 个分支。
+- [ISSUE-0012](../issues/ISSUE-0012-primitive-regression-suite.md) 与
+  [DESIGN-0012](../design/DESIGN-0012-primitive-regression-suite.md) 已实现。
+- 合成夹具已补齐 `specialSelectors`（64 项，binary 参数个数为 1）与 primitive
+  header；新增 `PrimitiveTestSupport` 和 `PrimitiveRegressionTest`。
+- 首批 22 个核心分支 + 分类代表，共 31 个新用例；覆盖直接 `doPrimitive`、
+  primitive header 和 special-bytecode 回退。
 - 失败分类同时断言 `getLastFailureKind()` 与注入的 `RuntimeStats`；
-  `doPrimitive` default、20–39 INTENTIONAL、172 no-op、异常逃逸要有回归。
+  `doPrimitive` default、20–39 INTENTIONAL、172 no-op、异常逃逸已有回归。
+- 原语 inventory 与测试状态见
+  [原语测试矩阵](../specifications/vm/primitive-test-matrix.md)。
 - 编译管线探针不在本任务内，归入 ISSUE-0011 §9.3 的独立路线项。
 - 新增原语不只靠人工冒烟发现。
 
@@ -223,11 +223,11 @@
 1. 代码 + 对应单元测试；
 2. 需要真实窗口验证的，记录人工验收步骤与结论；
 3. 更新相关文档（本文件、`plan.md`、`AGENTS.md` 中受影响的状态）；
-4. `./gradlew clean test` 全绿，测试数不低于当前 249；
+4. `./gradlew clean test` 全绿，测试数不低于当前 280；
 5. 不引入新的全局静态状态或新的“假成功”原语。
 
 ## 7. 一句话结论
 
-96、103、MVC 弹窗轮询限速、raw/gzip 映像兼容、SqueakJS 1.3.3 交叉验证与合成映像
-夹具（含确定性执行刻度）已完成。接下来优先补 Launcher 运行时参数与原语测试网；
+96、103、MVC 弹窗轮询限速、raw/gzip 映像兼容、SqueakJS 1.3.3 交叉验证、合成映像
+夹具（含确定性执行刻度）与原语回归网已完成。接下来优先补 Launcher 运行时参数；
 全屏/缩放/光标策略待决策，benchmark 设计与分派改造优先级暂缓，CI 与声音/网络继续后置。

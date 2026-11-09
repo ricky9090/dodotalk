@@ -274,7 +274,7 @@ oop = oldBaseAddr + heapOffset + 8
 | `ClassSymbol` | `ClassObject` | 1 | `Class_format = 1026` |
 | `nil` / `false` / `true` | `ClassObject` | 0 | 无字段 |
 | `symCannotInterpret` / `symCannotReturn` / `symDoesNotUnderstand` / `symMustBeBoolean` | `ClassSymbol` | 8\|padding | 字节对象 |
-| `specialSelectors` | `ClassArray` | 2 | 0 元素；slot 23 必须是有效对象 |
+| `specialSelectors` | `ClassArray` | 2 | 64 项 = 32 组 `{selector, nArgs}`；slot 23 必须是有效对象 |
 | `compactClasses` | `ClassArray` | 2 | 31 个指针槽；前 8 项真实类，其余 nil；**不是 format 6** |
 | `methodTop` / `methodHalt` | `ClassCompiledMethod` | 12\|padding | `methodHalt = [126]` |
 | `contextTop` / `contextHalt` | `ClassMethodContext` | 3 | 23 个指针字（6 固定 + 17 小帧） |
