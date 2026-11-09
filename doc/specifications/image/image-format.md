@@ -5,7 +5,7 @@
 | 状态 | current（raw + gzip + mixed headers） |
 | 适用代码 | `SqueakImage`、`Starter`、Primitive 97/121/142 |
 | 适用范围 | `save` / `save as`、启动参数 `-image`、支持文件查找 |
-| 最后核对 | 2026-11-04 |
+| 最后核对 | 2026-11-09 |
 | 关联决策 | [ADR-0006](../../adr/ADR-0006-raw-gzip-image-compatibility.md) / [ADR-0008](../../adr/ADR-0008-image-writer-compact-headers.md) / [ADR-0009](../../adr/ADR-0009-synthetic-fixture-over-downloaded-image.md) |
 | 关联设计 | [ISSUE-0005](../../issues/ISSUE-0005-raw-image-format-support.md) / [DESIGN-0005](../../design/DESIGN-0005-raw-image-format-support.md)；[ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md)；[ISSUE-0009](../../issues/ISSUE-0009-class-header-format-type-bit.md) / [DESIGN-0009](../../design/DESIGN-0009-class-header-format-type-bit.md)；[ISSUE-0011](../../issues/ISSUE-0011-synthetic-test-image-fixture.md) / [DESIGN-0011](../../design/DESIGN-0011-synthetic-test-image-fixture.md) |
 
@@ -280,7 +280,7 @@ oop = oldBaseAddr + heapOffset + 8
 | `contextTop` / `contextHalt` | `ClassMethodContext` | 3 | 23 个指针字（6 固定 + 17 小帧） |
 | `process` | `ClassProcess` | 1 | 5 个指针字；`Proc_suspendedContext = contextTop` |
 | `scheduler` / `schedulerAssociation` | `ClassObject` | 1 | 7 个指针字；`activeProcess` / `Assn_value` |
-| `specialObjectsArray` | `ClassArray` | 2 | 64 个指针槽 |
+| `specialObjectsArray` | `ClassArray` | 2 | 夹具 64 个指针槽；真实 2.2 为 41 槽 |
 
 `compactClasses` 必须是 `ClassArray / format 2`：reader 的 `makeCCArray` 在 install
 前读 `bits`（原始 int[]），format 6 也能“碰巧”通过；但 install 后 format 6 的

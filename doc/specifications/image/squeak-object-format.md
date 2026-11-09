@@ -5,7 +5,7 @@
 | 状态 | current |
 | 适用代码 | `SqueakImage`、`SqueakObject`、`ImageHeaderPlanner` |
 | 适用范围 | 32 位 Squeak 2.2 映像的对象 header、format、指针/字/字节数据、类格式与 Compact Class |
-| 最后核对 | 2026-11-04 |
+| 最后核对 | 2026-11-09 |
 | 关联设计 | [ISSUE-0008](../../issues/ISSUE-0008-image-writer-compact-headers.md) / [DESIGN-0008](../../design/DESIGN-0008-image-writer-compact-headers.md)；[ISSUE-0009](../../issues/ISSUE-0009-class-header-format-type-bit.md) / [DESIGN-0009](../../design/DESIGN-0009-class-header-format-type-bit.md) |
 | 关联文档 | [映像格式](image-format.md)；[合成测试映像构造流程](synthetic-image-builder.md) |
 
@@ -181,7 +181,7 @@ Compact class 是“用 5 位索引代替完整 class oop”的优化：
 | 6 | 仅可变字字段 | 32 位字 | `bits = int[]`；Float 例外见 §8 | `Bitmap`、`Float` |
 | 7 | 未使用（字） | 字 | `bits = int[]` | 2.2 中未使用；原样保留 |
 | 8–11 | 仅可变字节字段 | 字节 | `bits = byte[]` | `String`、`Symbol`、`ByteArray` |
-| 12–15 | CompiledMethod | header + literals 指针 + 字节码字节 | `pointers` + `bits` | `CompiledMethod` |
+| 12–15 | CompiledMethod | header + literals 指针 + 字节码字节 + 4 字节 trailer（真实 2.2） | `pointers` + `bits` | `CompiledMethod` |
 
 ### 4.1 字节对象的 padding
 
@@ -267,6 +267,16 @@ raw & 1 == 0  -> oop；通过 oopMap 解析成对象
 - 实例固定字段数 `instSize`；
 - 实例 format（0–15）。
 
+> **`Class_format` 是一个指针槽**，映像里的原始字是带 SmallInt 标签的
+> `(spec << 1) | 1`。reader 的 `decodePointers` 会把奇数原始字解成 Java
+> `Integer`，所以 `getPointerI()` 返回的是**已解标签**的 `spec`。下面的公式
+> 作用于解标签后的 `spec`，不是原始映像字；直接套原始字会得到错误的
+> `instSize` / `format`。
+
+例如 MethodContext：真实 2.2 原始字 `0xE31D` → 解标签后 `29070`；用 29070
+计算得到 `instSize = 6`、`format = 3`。合成夹具使用最小编码 `398`，解码结果
+相同。
+
 DodoTalk 的解码：
 
 ```java
@@ -287,10 +297,10 @@ int format   = (instSpec >> 7) & 0xF;
 Class_format = ((instSize + 1) << 1) | (format << 7)
 ```
 
-常见值：
+合成夹具常见值：
 
-| 类 | instSize | format | `Class_format` |
-|----|----------|--------|----------------|
+| 类 | instSize | format | 合成夹具 `Class_format` |
+|----|----------|--------|--------------------------|
 | `ClassObject` | 7 | 1 | 144 |
 | `ClassInteger` | 0 | 1 | 130 |
 | `ClassArray` | 0 | 2 | 258 |
@@ -299,6 +309,11 @@ Class_format = ((instSize + 1) << 1) | (format << 7)
 | `ClassCompiledMethod` | 0 | 12 | 1538 |
 | `ClassProcess` | 5 | 1 | 140 |
 | `ClassSymbol` | 0 | 8 | 1026 |
+
+> 表中是**合成夹具的最小编码**。真实 2.2 的 `Class_format` 解码值可能带有
+> 额外高位：MethodContext `29070`、BlockContext `27022`、Point `18566`、
+> Array `6402`、CompiledMethod `3586`。它们与夹具数值不同，但解码出的
+> `instSize` / `format` 相同。测试不要依赖具体数值，只依赖解码结果。
 
 注意：`Class_format` 的 format 字段是**实例 format**，不是类对象自己的 header
 format。类对象本身通常是 format 1（固定指针字段）。
@@ -320,11 +335,13 @@ byte 对象（format 8-11）:
 
 CompiledMethod（format 12-15）:
   pointers          = 1 (method header) + numLits
-  bytecodes bytes   = (dataWords - pointers) * 4 - padding
+  byte section      = (dataWords - pointers) * 4 - padding
+  bytecodes bytes   = byte section - 4   // 真实 2.2 的 trailer；合成夹具无 trailer
 ```
 
 DodoTalk 的 `pointersSize()` 返回 `pointers` 数组总长度（固定 + 可变），
-`bitsSize()` 返回 `bits` 的长度（Double 返回 2 个字）。
+`bitsSize()` 返回 `bits` 的长度（Double 返回 2 个字）。对真实 2.2 的
+CompiledMethod，`bits` 包含 trailer，因此 `bitsSize()` 不是纯字节码长度。
 
 ## 8. Float 的特殊处理
 
@@ -356,8 +373,24 @@ CompiledMethod 同时有指针区和字节区：
 ```text
 dataWords = (numLits + 1) + byteWords
 pointers  = [methodHeader, literal0, ..., literalN-1]
-bits      = bytecodes（大端字节，尾部 padding）
+bits      = 字节区（大端）：bytecodes + trailer(4 字节) + padding
 ```
+
+真实 Squeak 2.2 的字节区末尾有 **4 字节 trailer**（源码指针/标志；DodoTalk
+不解析其语义）：
+
+```text
+byte section   = bytecodes + trailer(4 bytes) + padding
+bytecode bytes = byte section - 4
+```
+
+- 纯 primitive 方法可以只有这 4 字节 trailer，没有字节码；
+- DodoTalk 的 `decodeBytes` 会把 trailer 一并读进 `bits`；`methodBytes` 也包含
+  它。解释器在 return 字节码处停止，不会执行 trailer，所以当前行为正确；
+- 任何把 `bits` 全部当作字节码的代码（反编译、打印、长度统计）都需要减去这
+  4 字节；
+- 合成夹具 `SyntheticImageBuilder` 不写 trailer；它的字节区就是
+  `bytecodes + padding`，这是与真实 2.2 的已知差异，不影响测试执行。
 
 映像中的第一个字是**左移一位并置最低位 1** 的方法头：
 
@@ -375,7 +408,7 @@ numLits = (rawHeader >> 10) & 255
 
 - `decodePointers(numLits + 1, ...)` 解出方法头和 literals；
 - `decodeBytes(dataWords - (numLits + 1), ..., numLits + 1, format & 3)`
-  解出字节码。
+  解出整个字节区（字节码 + trailer + padding）。
 
 方法头位定义（DodoTalk）：
 
@@ -386,6 +419,9 @@ numLits = (rawHeader >> 10) & 255
 | 17 | large frame |
 | 18..23 | tempCount |
 | 24..27 | numArgs |
+
+bit 28 是 primitive index 的高位，bit 29 是 flag；DodoTalk 的
+`methodPrimitiveIndex()` 用 `0x300001FF` 掩码处理扩展 primitive 位。
 
 扩展 primitive index（`methodPrimitiveIndex()`）：
 
@@ -415,6 +451,18 @@ compactClasses[30] -> class for index 31
 - reader 在 install 前用 `oldOopAt` 读取原始 oop；
 - writer 的 `ImageHeaderPlanner.compactClassIndexes` 从存活表构造 1-based 映射；
 - short header 的 5 位索引只能表示 1..31。
+
+本机真实 2.2 映像的非 nil 项包括：
+
+```text
+1 CompiledMethod   2 Symbol        3 Array         4 PseudoContext
+5 LargePositiveInteger             7 MethodDictionary  8 Association
+9 Point           10 Rectangle    12 TranslatedMethod  13 BlockContext
+14 MethodContext
+```
+
+注意：**String 不在 2.2 的 compact class 表中**，所以 String 实例不能用 1 字
+short header；Symbol 在索引 2，可以用 short header。两者的字节对象布局相同。
 
 ## 11. 映像级 header
 
@@ -455,6 +503,7 @@ readImageContent:
   6. 读 compact classes 数组（slot 28）
   7. 校验 Float class（slot 9）
   8. install 所有对象：解析类引用、指针、字节、Float、CompiledMethod
+     （CompiledMethod 的 bits 包含字节码 + trailer + padding）
 ```
 
 对象 oop 的计算：
@@ -536,10 +585,11 @@ size          = dataWords + 1
 | 0–4 | `pointers`（固定 + 可变） |
 | 5–7 | `bits` 的 `int[]` 字 |
 | 8–11 | `bits` 的字节（大端） |
-| 12–15 | 先 `pointers`（header + literals），再字节码字节 |
+| 12–15 | 先 `pointers`（header + literals），再字节区（字节码 + trailer + padding） |
 
 `normalizedFormat` 会根据实际字节长度重新计算 padding，因此内存中的 format
-8/12 在映像里会变成 8–11/12–15。
+8/12 在映像里会变成 8–11/12–15。真实映像的 `bits` 已包含 CompiledMethod
+trailer，writer 原样写回；合成夹具的 `bits` 不含 trailer。
 
 ### 13.4 类 oop 检查
 
@@ -611,7 +661,7 @@ data: elem0, elem1, elem2
 oop = base + 8
 ```
 
-### 15.3 `String "abc"`（format 9，1 字 header 示例）
+### 15.3 `Symbol "abc"`（format 9，1 字 header 示例）
 
 ```text
 byteLength = 3
@@ -620,6 +670,10 @@ padding = 1
 format = 8 | 1 = 9
 data word = 0x61626300
 ```
+
+真实 2.2 的 compact class 表包含 Symbol（索引 2），因此 Symbol 可以使用 1 字
+short header。String 不在 2.2 的 compact class 表中，实际 String 需要 2 字/3 字
+header；两者的字节对象布局相同。
 
 ### 15.4 `Float 1.5`（format 6，2 字）
 
@@ -640,10 +694,22 @@ size = 24
 
 ### 15.6 `CompiledMethod`（format 12–15）
 
+真实 2.2：
+
 ```text
 numLits = 2
-pointers = [methodHeader, lit0, lit1]   // 3 words
-bytecodes = 5 bytes                     // 2 words, padding 3
+pointers = [methodHeader, lit0, lit1]       // 3 words
+bytecodes = 5 bytes
+trailer = 4 bytes
+byte section = 9 bytes -> 3 words, padding 3
+dataWords = 3 + 3 = 6
+image format = 12 | 3 = 15
+```
+
+合成夹具不写 trailer，所以同样 5 字节字节码时：
+
+```text
+byte section = 5 bytes -> 2 words, padding 3
 dataWords = 3 + 2 = 5
 image format = 12 | 3 = 15
 ```
@@ -679,7 +745,9 @@ image format = 12 | 3 = 15
 9. 计算 oop = 最后一个 header 字的堆偏移 + oldBaseAddr；
 10. 对字节对象用 padding 计算真实字节数；
 11. 对 CompiledMethod 用 numLits 分离指针区和字节区；
-12. 对 Float 用两个字合成 double。
+12. 真实 2.2 的 CompiledMethod 字节区末尾有 4 字节 trailer；字节码长度 =
+    字节区长度 − 4（合成夹具无 trailer）；
+13. 对 Float 用两个字合成 double。
 
 ## 18. 参考
 

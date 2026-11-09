@@ -5,7 +5,7 @@
 | 状态 | current（informative） |
 | 适用代码 | `src/test/java/org/dodotalk/core/SyntheticImageBuilder.java`、`SyntheticImageFixtureTest.java` |
 | 关联 | ISSUE-0011 / DESIGN-0011；ISSUE-0012 / DESIGN-0012 |
-| 最后核对 | 2026-11-04 |
+| 最后核对 | 2026-11-09 |
 
 ## 1. 目的与边界
 
@@ -241,7 +241,7 @@ format 2 在 install 后仍有 `pointers`，writer 的 compact class 路径才�
 
 ## 8. special objects array
 
-最后声明 `specialObjectsArray`，64 个指针槽。已填充：
+最后声明 `specialObjectsArray`，夹具使用 **64 个指针槽**。已填充：
 
 | 槽 | 内容 |
 |----|------|
@@ -267,6 +267,15 @@ format 2 在 install 后仍有 `pointers`，writer 的 compact class 路径才�
 - reader 对偶数原始字做 `oopMap.get(raw)`；查不到会得到 Java `null`；
 - `checkForInterrupts` 等代码会判断 `sema != nilObj`；如果槽位是 Java `null`
   而不是 nil 对象，语义会变。
+
+> **与真实 2.2 的差异**：真实 2.2 的 `specialObjectsArray` 是 **41 槽**；夹具使用
+> 64 槽（Squeak 3+ 布局的超集），多出的槽全部填 nil。reader 只按固定索引取用，
+> 当前没有行为影响；若要严格对齐 2.2，可把 `SPL_SLOTS` 改为 41。
+>
+> 注意区分两个 64：
+> - `specialObjectsArray` 槽数：真实 2.2 = 41，夹具 = 64；
+> - `specialSelectors`（slot 23 指向的数组）：真实 2.2 = **64 项**，夹具当前为
+>   0 项，ISSUE-0012 S0 计划补齐为 64 项。
 
 reader 还会硬性检查：
 
@@ -379,6 +388,11 @@ word[1+L..] = packed bytecodes（大端）
 ```
 
 format 使用 `byteFormat(12, bytecodeCount)`，把 padding 写进低 2 位。
+
+> 真实 Squeak 2.2 的 CompiledMethod 在字节码之后还有 **4 字节 trailer**
+> （源码指针/标志）；本生成器**不写 trailer**，字节区就是字节码 + padding。
+> 这是夹具与真实 2.2 的已知保真度差异，不影响测试执行（解释器在 return 处
+> 停止）。见 §14。
 
 ### 10.3 当前限制
 
@@ -520,6 +534,8 @@ vm.run()
 |------|------|------|
 | `specialSelectors` 为 0 元素 | `sendSpecial` 与 `doPrimitive(60/61)` 读取 `[32]/[34]` 时抛 AIOOBE | ISSUE-0012 S0 补齐 64 项，按真实 2.2 的 `nArgs` |
 | primitive index 硬编码 0 | 无法测试 `executeNewMethod → tryPrimitive` | ISSUE-0012 S1 增加 primitive header 支持 |
+| CompiledMethod 不含 4 字节 trailer | 与真实 2.2 的字节区布局不一致；`bits` 直接是字节码 + padding | 不影响测试执行；需要格式保真时再补 trailer |
+| `specialObjectsArray` 使用 64 槽 | 真实 2.2 为 41 槽；多出的槽填 nil | reader 按固定索引取用，当前无害；可选对齐 41 |
 | 没有 `ClassMessage`（slot 15） | `doesNotUnderstand:` 路径不可用 | 首批不做；后续需要时补 |
 | 没有 `ClassString`（slot 6）/`ClassByteArray`（slot 26）/`ClassCharacter`（slot 19）/`CharacterTable`（slot 24） | 字符串/字符/字节数组原语测试需要额外对象 | PrimitiveTestSupport 按需补类或专用变体 |
 | 没有 `TheDisplay`（slot 14） | 显示原语只能测 headless 失败路径 | 保持 headless，不接真实窗口 |
@@ -607,7 +623,7 @@ slots[Squeak.splOb_ClassString] = "ClassString";
 | `IMAGE_VERSION` | 6502 | 映像版本 |
 | `HEADER_SIZE` | 64 | 9 int + 28 字节补零 |
 | `OLD_BASE_ADDR` | 0x10000000 | 对象内存基址 |
-| `SPL_SLOTS` | 64 | special objects array 槽数 |
+| `SPL_SLOTS` | 64 | 夹具的 special objects array 槽数；真实 2.2 为 41 |
 | `DEFAULT_BENCH_REPETITIONS` | 1000 | BENCH 默认 N |
 | `MAX_BENCH_REPETITIONS` | 2_000_000 | BENCH 上限 |
 | `PUSH_CONSTANT_ONE` | 118 | 推 SmallInt 1 |
